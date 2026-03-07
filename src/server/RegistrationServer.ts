@@ -337,20 +337,23 @@ export class RegistrationServer {
     // history entries: { type: 'user'|'claude'|'tool'|'error', content: string }
     let history = loadHistory();
 
-    // ── render saved history on load ─────────────────────────────────────────
-    if (history.length === 0) {
-      const welcome = { type: 'claude', content: "Hi! I'm your Ajo pool agent. Tell me what you'd like to do — e.g. \"Create a pool for 3 members with a 7-day interval and 1 USDT contribution\"." };
-      history.push(welcome);
-      saveHistory(history);
+    // ── render chat ───────────────────────────────────────────────────────────
+    function initChat() {
+      messages.innerHTML = '';
+      if (history.length === 0) {
+        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDT contribution.', 'claude');
+      } else {
+        history.forEach(function(h) { renderBubble(h.content, h.type); });
+      }
+      messages.scrollTop = messages.scrollHeight;
     }
-    history.forEach(({ type, content }) => renderBubble(content, type));
-    messages.scrollTop = messages.scrollHeight;
+    initChat();
 
     // ── clear button ─────────────────────────────────────────────────────────
-    document.getElementById('clear-chat').addEventListener('click', () => {
+    document.getElementById('clear-chat').addEventListener('click', function() {
       history = [];
       saveHistory(history);
-      messages.innerHTML = '';
+      initChat();
     });
 
     // ── pool panel auto-refresh every 8s ─────────────────────────────────────
