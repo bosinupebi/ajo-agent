@@ -12,11 +12,14 @@ The agent holds a self-custodial WDK wallet, deploys and manages AjoV1 rotating 
 
 Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) implemented as autonomous economic infrastructure:
 
-1. **The agent deploys a savings pool** via the AjoV1Factory contract, setting the contribution amount and interval
-2. **A registration website opens** where members submit their Ethereum address to join
-3. **Claude monitors signups** and decides when the target membership is reached
-4. **The agent calls `addMembers` on-chain**, committing the member set to the contract
-5. **Claude tracks the interval** and triggers payouts to members in sequence when the time is right
+1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 USDT contribution"
+2. **The agent deploys the pool** via the AjoV1Factory contract and registers it on the website
+3. **A registration website opens** where members submit their Ethereum address to join any open pool
+4. **Each pool card** shows a live member progress bar, contribution amount, interval, and member list
+5. **When the required member count is reached**, the pool card shows "Membership Closed" and the join form disappears
+6. **Multiple pools** can be created and tracked simultaneously — each appears as its own card
+7. **Claude monitors signups** and decides when to call `addMembers` on-chain, updating member statuses to "added"
+8. **Claude tracks intervals** and triggers payouts to members when instructed
 
 The admin never manually submits a transaction. Claude reasons over on-chain state — balances, intervals, payout timestamps — and acts through the agent wallet.
 
@@ -33,13 +36,15 @@ Claude (claude-opus-4-6)
     ▼
 AdminAgent  ──────────────────────────────────► Ethereum Mainnet
   WDK self-custodial wallet                      AjoV1Factory
-  viem ABI encoding                              AjoV1SavingsPool
+  viem ABI encoding                              AjoV1SavingsPool (×N)
   on-chain reads + writes                        USDT (ERC-20)
     │
     ▼
 RegistrationServer (Express)
   localhost:3000
+  Pool cards with live member tracking
   Members submit their address to join
+  Membership Closed badge when pool is full
 ```
 
 Claude has access to the following tools:
@@ -48,10 +53,10 @@ Claude has access to the following tools:
 |---|---|
 | `get_admin_address` | Fetch the agent's wallet address |
 | `get_eth_balance` | Check ETH balance before transacting |
-| `create_savings_pool` | Deploy a new pool via the factory |
-| `get_registered_members` | See who has signed up via the website |
-| `wait_for_members` | Block until N members have registered |
-| `add_members` | Add registered addresses on-chain |
+| `create_savings_pool` | Deploy a new pool and register it on the website |
+| `get_registered_members` | See who has signed up, optionally filtered by pool |
+| `wait_for_members` | Block until N members have signed up for a specific pool |
+| `add_members` | Add registered addresses on-chain and update their status |
 | `get_pool_info` | Read live pool state from the contract |
 | `trigger_payout` | Distribute funds to the next recipient |
 
@@ -68,20 +73,37 @@ npm start
 Then instruct Claude in plain language:
 
 ```
-You: Create a savings pool with a 7 day interval and 1 USDT contribution
-Claude: [deploys pool, registration site goes live at localhost:3000]
+You: Create a pool for 3 members with a 7 day interval and 1 USDT contribution
+Claude: [deploys pool, card appears at localhost:3000 showing 0/3 members]
 
-You: Wait for 3 members to sign up then add them to the pool
-Claude: [waits... adds members on-chain once 3 addresses are submitted]
+You: Create another pool for 5 members with a 30 day interval and 5 USDT
+Claude: [deploys second pool, second card appears alongside the first]
 
-You: Check the pool balance and tell me when payout is due
+You: Wait for 3 members on the first pool then add them
+Claude: [waits... adds on-chain once 3 sign up, site shows "Membership Closed"]
+
+You: Check pool balance and tell me when payout is due
 Claude: [reads contract state, reports interval progress]
 
 You: Trigger payout to the first member
-Claude: [computes correct timestamp from pool state, sends payout tx]
+Claude: [computes timestamp from pool state, sends payout tx]
 ```
 
-Members visit `http://localhost:3000`, paste their Ethereum address, and join. No seed phrases required from members — they interact through the website and sign their own transactions independently.
+Members visit `http://localhost:3000`, see all open pools, and submit their Ethereum address to join. No seed phrases required from members.
+
+---
+
+## Registration website
+
+Each pool appears as a card showing:
+- Pool contract address
+- Contribution amount and interval
+- Member progress bar (e.g. `3 / 5`)
+- Collapsible member list with pending/added status per address
+- **"Membership Closed"** badge and notice when the required count is reached
+- Join form (hidden once membership is closed)
+
+The page auto-refreshes every 5 seconds.
 
 ---
 
@@ -109,7 +131,7 @@ src/
 ├── agents/
 │   └── AdminAgent.ts              WDK wallet + all on-chain operations
 └── server/
-    └── RegistrationServer.ts      Express signup website
+    └── RegistrationServer.ts      Express website with multi-pool tracking
 ```
 
 ---
@@ -119,4 +141,5 @@ src/
 - **Self-custodial**: the agent wallet is derived from a BIP-39 seed phrase via WDK — no centralised key custody
 - **On-chain settlement**: every action (pool creation, member addition, payout) is a signed Ethereum transaction
 - **Agent autonomy**: Claude reads live contract state to determine when to act — no hardcoded thresholds
+- **Multi-pool**: multiple savings pools can run concurrently, each tracked independently on the website
 - **Human coordination layer**: the registration website lets real users participate without needing to interact with the agent directly
