@@ -1,4 +1,9 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
+
+// Load .env relative to this file so it works regardless of cwd
+config({ path: join(dirname(fileURLToPath(import.meta.url)), "../.env") });
 
 export const ETH_RPC_URL = process.env.ETH_RPC_URL || "https://eth.drpc.org";
 export const FACTORY_ADDRESS = process.env.MAINNET_FACTORY_ADDRESS as string;

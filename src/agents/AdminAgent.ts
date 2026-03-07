@@ -25,7 +25,7 @@ interface CreatePoolResult {
 }
 
 interface WdkAccount {
-  address: string;
+  getAddress(): Promise<string>;
   sendTransaction: (tx: { to: string; value: number | bigint; data?: string }) => Promise<{ hash: string }>;
 }
 
@@ -42,11 +42,12 @@ export class AdminAgent {
   }
 
   async getAddress(): Promise<Address> {
-    return this.account.address as Address;
+    return (await this.account.getAddress()) as Address;
   }
 
   async getEthBalance(): Promise<string> {
-    const balance = await this.publicClient.getBalance({ address: this.account.address as Address });
+    const address = (await this.account.getAddress()) as Address;
+    const balance = await this.publicClient.getBalance({ address });
     return formatEther(balance);
   }
 

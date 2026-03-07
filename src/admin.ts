@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { ADMIN_SEED_PHRASE, ETH_RPC_URL, REGISTRATION_PORT } from "./config.js";
 import { AdminAgent } from "./agents/AdminAgent.js";
 import { RegistrationServer } from "./server/RegistrationServer.js";
