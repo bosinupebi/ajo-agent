@@ -26,6 +26,7 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 6. **Multiple pools** can be created and tracked simultaneously — each appears as its own card
 7. **Claude monitors signups** and decides when to call `addMembers` on-chain, updating member statuses to "added"
 8. **Claude tracks intervals** and triggers payouts to members when instructed
+9. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
 
 The admin never manually submits a transaction. Claude reasons over on-chain state — balances, intervals, payout timestamps — and acts through the agent wallet.
 
@@ -62,7 +63,7 @@ Claude has access to the following tools:
 | `wait_for_members` | Block until N members have signed up for a specific pool |
 | `add_members` | Add registered addresses on-chain and update their status |
 | `get_pool_info` | Read live pool state from the contract |
-| `trigger_payout` | Distribute funds to the next recipient |
+| `trigger_payout` | Distribute funds — rejects if recipient is not an added member |
 
 ---
 
@@ -89,7 +90,8 @@ Wait for 3 members on the first pool then add them
 → Claude waits... adds on-chain once 3 sign up, card shows "Membership Closed"
 
 Trigger payout to 0xabc...
-→ Claude reads pool state, computes timestamp, sends tx — hash appears as a clickable Etherscan link
+→ Claude verifies recipient is an added member, reads pool state, computes timestamp, sends tx
+→ Hash appears as a clickable Etherscan link on the pool card payout history
 ```
 
 **Members** — visit the same URL, see all open pools, and submit their Ethereum address to join. No seed phrases required from members. Chat history is preserved across page refreshes.
@@ -107,6 +109,7 @@ A single page split into two panels:
 - Collapsible member list with `pending` / `added` status per address
 - **"Membership Closed"** badge when the required count is reached
 - Join form per pool (hidden once closed)
+- Collapsible payout history — recipient address and clickable Etherscan tx link per payout
 
 **Right — Agent chat**
 - Send natural language instructions to Claude
@@ -153,4 +156,4 @@ src/
 - **On-chain settlement**: every action (pool creation, member addition, payout) is a signed Ethereum transaction
 - **Agent autonomy**: Claude reads live contract state to determine when to act — no hardcoded thresholds
 - **Multi-pool**: multiple savings pools can run concurrently, each tracked independently on the website
-- **Human coordination layer**: the registration website lets real users participate without needing to interact with the agent directly
+- **Open participation layer**: the registration website lets real users or other agents participate without needing to interact with the admin agent directly
