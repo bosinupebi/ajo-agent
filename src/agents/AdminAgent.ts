@@ -17,6 +17,7 @@ interface PoolInfo {
   contribution: string;
   lastProcessedInterval: string;
   lastPayoutTimestamp: string;
+  firstIntervalEndTimestamp: string;
 }
 
 interface CreatePoolResult {
@@ -131,7 +132,7 @@ export class AdminAgent {
   }
 
   async getPoolInfo(poolAddress: Address): Promise<PoolInfo> {
-    const [balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp] =
+    const [balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp, firstInterval] =
       await Promise.all([
         this.publicClient.readContract({
           address: poolAddress,
@@ -158,7 +159,15 @@ export class AdminAgent {
           abi: savingsPoolAbi,
           functionName: "lastPayoutTimestamp",
         }),
+        this.publicClient.readContract({
+          address: poolAddress,
+          abi: savingsPoolAbi,
+          functionName: "intervals",
+          args: [0n],
+        }),
       ]);
+
+    const { endTimestamp: firstIntervalEndTimestamp } = firstInterval as { totalDeposits: bigint; endTimestamp: bigint };
 
     return {
       balance: (balance as bigint).toString(),
@@ -166,6 +175,7 @@ export class AdminAgent {
       contribution: (contribution as bigint).toString(),
       lastProcessedInterval: (lastProcessedInterval as bigint).toString(),
       lastPayoutTimestamp: (lastPayoutTimestamp as bigint).toString(),
+      firstIntervalEndTimestamp: firstIntervalEndTimestamp.toString(),
     };
   }
 }

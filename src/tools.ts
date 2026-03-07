@@ -74,11 +74,12 @@ export async function handleTool(
       const info = await ctx.admin.getPoolInfo(poolAddress);
       return (
         `Pool ${poolAddress}:\n` +
-        `  balance:               ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
-        `  interval:              ${info.interval}s (${Number(info.interval) / 86400} days)\n` +
-        `  contribution:          ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
-        `  lastProcessedInterval: ${info.lastProcessedInterval}\n` +
-        `  lastPayoutTimestamp:   ${info.lastPayoutTimestamp}`
+        `  balance:                  ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
+        `  interval:                 ${info.interval}s (${Number(info.interval) / 86400} days)\n` +
+        `  contribution:             ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
+        `  lastProcessedInterval:    ${info.lastProcessedInterval}\n` +
+        `  lastPayoutTimestamp:      ${info.lastPayoutTimestamp}\n` +
+        `  firstIntervalEndTimestamp:${info.firstIntervalEndTimestamp} (use this as payout timestamp for the first payout)`
       );
     }
 
