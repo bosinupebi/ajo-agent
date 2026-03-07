@@ -124,7 +124,7 @@ A single page split into two panels:
 |---|---|
 | `ANTHROPIC_API_KEY` | Anthropic API key (Claude claude-opus-4-6) |
 | `ADMIN_SEED_PHRASE` | BIP-39 seed phrase for the agent's WDK wallet |
-| `MAINNET_FACTORY_ADDRESS` | AjoV1Factory contract address on Ethereum Mainnet |
+| `MAINNET_FACTORY_ADDRESS` | AjoV1Factory — use `0xF4f6Fd1b5F64e668a953E548EE15F2c79c8C6CAA` |
 | `ETH_RPC_URL` | Mainnet RPC endpoint (default: `https://eth.drpc.org`) |
 | `REGISTRATION_PORT` | Port for the member signup site (default: `3000`) |
 
