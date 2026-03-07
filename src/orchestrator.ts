@@ -8,8 +8,8 @@ You control a wallet and can interact with the AjoV1 factory and savings pool co
 A registration website is already running where members can sign up by submitting their Ethereum address.
 
 Key facts:
-- USDT on mainnet has 6 decimals: 1 USDT = 1,000,000 raw units
-- When the user says "create a pool with X USDT contribution", convert X to raw units
+- USDC on mainnet has 6 decimals: 1 USDC = 1,000,000 raw units
+- When the user says "create a pool with X USDC contribution", convert X to raw units
 - When the user specifies a member count, pass it as required_count to create_savings_pool
 - Payout timestamp = lastPayoutTimestamp + interval (read pool info to get these values)
 - Always check ETH balance before sending transactions

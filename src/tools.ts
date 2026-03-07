@@ -74,9 +74,9 @@ export async function handleTool(
       const info = await ctx.admin.getPoolInfo(poolAddress);
       return (
         `Pool ${poolAddress}:\n` +
-        `  balance:               ${info.balance} raw USDT (${Number(info.balance) / 1e6} USDT)\n` +
+        `  balance:               ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
         `  interval:              ${info.interval}s (${Number(info.interval) / 86400} days)\n` +
-        `  contribution:          ${info.contribution} raw USDT (${Number(info.contribution) / 1e6} USDT)\n` +
+        `  contribution:          ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
         `  lastProcessedInterval: ${info.lastProcessedInterval}\n` +
         `  lastPayoutTimestamp:   ${info.lastPayoutTimestamp}`
       );
@@ -119,7 +119,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "create_savings_pool",
-    description: "Deploy a new AjoV1 savings pool and register it on the website. USDT (6 decimals) is always the contribution token.",
+    description: "Deploy a new AjoV1 savings pool and register it on the website. USDC (6 decimals) is always the contribution token.",
     input_schema: {
       type: "object",
       properties: {
@@ -129,7 +129,7 @@ export const tools: Anthropic.Tool[] = [
         },
         contribution_raw: {
           type: "number",
-          description: "Contribution amount in raw USDT units (e.g. 1000000 = 1 USDT)",
+          description: "Contribution amount in raw USDC units (e.g. 1000000 = 1 USDC)",
         },
         required_count: {
           type: "number",

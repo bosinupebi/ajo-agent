@@ -341,7 +341,7 @@ export class RegistrationServer {
     function initChat() {
       messages.innerHTML = '';
       if (history.length === 0) {
-        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDT contribution.', 'claude');
+        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDC contribution.', 'claude');
       } else {
         history.forEach(function(h) { renderBubble(h.content, h.type); });
       }
@@ -382,7 +382,7 @@ export class RegistrationServer {
           <span class="badge \${pool.status}">\${isClosed ? 'Membership Closed' : 'Open'}</span>
         </div>
         <div class="pool-meta">
-          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contribution} USDT</div></div>
+          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contribution} USDC</div></div>
           <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalDays} days</div></div>
         </div>
         <div class="progress-wrap">
@@ -526,7 +526,7 @@ export class RegistrationServer {
     <span class="badge ${pool.status}">${isClosed ? "Membership Closed" : "Open"}</span>
   </div>
   <div class="pool-meta">
-    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contribution} USDT</div></div>
+    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contribution} USDC</div></div>
     <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalDays} days</div></div>
   </div>
   <div class="progress-wrap">
