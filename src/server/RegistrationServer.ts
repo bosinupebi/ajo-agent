@@ -1,7 +1,12 @@
 import express, { type Request, type Response } from "express";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import type { Address } from "viem";
 import { REGISTRATION_PORT } from "../config.js";
 import type { Orchestrator } from "../orchestrator.js";
+
+const DB_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../data/store.json");
 
 export type MemberStatus = "pending" | "added";
 export type PoolStatus = "open" | "closed";
@@ -44,7 +49,35 @@ export class RegistrationServer {
   private orchestrator: Orchestrator | null = null;
 
   constructor() {
+    this.loadFromDisk();
     this.setup();
+  }
+
+  private loadFromDisk() {
+    if (!existsSync(DB_PATH)) return;
+    try {
+      const raw = JSON.parse(readFileSync(DB_PATH, "utf8"));
+      if (raw.pools) this.pools = new Map(Object.entries(raw.pools));
+      if (raw.members) this.members = new Map(Object.entries(raw.members));
+      if (raw.payouts) this.payouts = new Map(Object.entries(raw.payouts) as [string, PayoutRecord[]][]);
+      console.log(`[Server] Loaded persisted data from ${DB_PATH}`);
+    } catch (err) {
+      console.warn(`[Server] Could not load persisted data: ${err}`);
+    }
+  }
+
+  private saveToDisk() {
+    try {
+      mkdirSync(dirname(DB_PATH), { recursive: true });
+      const data = {
+        pools: Object.fromEntries(this.pools),
+        members: Object.fromEntries(this.members),
+        payouts: Object.fromEntries(this.payouts),
+      };
+      writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf8");
+    } catch (err) {
+      console.warn(`[Server] Could not save data: ${err}`);
+    }
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────────
@@ -57,6 +90,7 @@ export class RegistrationServer {
     const key = info.poolAddress.toLowerCase();
     this.pools.set(key, { ...info, status: "open", createdAt: new Date().toISOString() });
     console.log(`[Server] Pool registered: ${info.poolAddress}`);
+    this.saveToDisk();
   }
 
   getRegisteredMembers(poolAddress?: string) {
@@ -71,6 +105,7 @@ export class RegistrationServer {
     if (!this.payouts.has(key)) this.payouts.set(key, []);
     this.payouts.get(key)!.push({ ...payout, paidAt: new Date().toISOString() });
     console.log(`[Server] Payout recorded for pool ${key}: ${payout.recipient}`);
+    this.saveToDisk();
   }
 
   markMembersAdded(poolAddress: string, addresses: Address[]) {
@@ -79,6 +114,7 @@ export class RegistrationServer {
       const m = this.members.get(key);
       if (m) m.status = "added";
     }
+    this.saveToDisk();
   }
 
   waitForMembers(poolAddress: string, count: number): Promise<Address[]> {
@@ -139,6 +175,7 @@ export class RegistrationServer {
         console.log(`[Server] Pool ${poolKey} closed (${count}/${pool.requiredCount})`);
       }
 
+      this.saveToDisk();
       this.checkWaitHandles(poolKey);
     }
 
