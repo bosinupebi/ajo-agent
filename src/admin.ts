@@ -1,7 +1,7 @@
 import { ADMIN_SEED_PHRASE, ETH_RPC_URL, REGISTRATION_PORT } from "./config.js";
 import { AdminAgent } from "./agents/AdminAgent.js";
 import { RegistrationServer } from "./server/RegistrationServer.js";
-import { runChat } from "./orchestrator.js";
+import { Orchestrator } from "./orchestrator.js";
 
 async function main() {
   const WdkManager = (await import("@tetherto/wdk")).default;
@@ -13,11 +13,12 @@ async function main() {
 
   const admin = new AdminAgent(account);
   const server = new RegistrationServer();
+  const orchestrator = new Orchestrator({ admin, server });
 
+  server.setOrchestrator(orchestrator);
   await server.start();
-  console.log(`Registration site: http://localhost:${REGISTRATION_PORT}`);
 
-  await runChat({ admin, server });
+  console.log(`Open http://localhost:${REGISTRATION_PORT} to manage pools and chat with the agent.`);
 }
 
 main().catch((err) => {
