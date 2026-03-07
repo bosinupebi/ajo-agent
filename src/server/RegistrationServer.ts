@@ -251,6 +251,9 @@ export class RegistrationServer {
     .msg.claude { background: #f4f4f1; color: #1a1a1a; align-self: flex-start; border-bottom-left-radius: 4px; }
     .msg.tool { background: #ede9fe; color: #4338ca; align-self: flex-start; font-size: .75rem; font-style: italic; border-radius: 8px; }
     .msg.error { background: #fef2f2; color: #991b1b; align-self: flex-start; font-size: .75rem; border-radius: 8px; }
+    .msg a { color: inherit; text-decoration: underline; text-underline-offset: 2px; font-family: monospace; }
+    .msg.user a { color: #c7d2fe; }
+    .msg a:hover { opacity: .8; }
 
     .chat-input-wrap { padding: .75rem; border-top: 1px solid #f0f0eb; display: flex; gap: .4rem; flex-shrink: 0; }
     .chat-input-wrap textarea { flex: 1; padding: .55rem .8rem; border: 1.5px solid #ddd; border-radius: 10px; font-size: .82rem; resize: none; font-family: inherit; line-height: 1.4; height: 60px; }
@@ -379,10 +382,21 @@ export class RegistrationServer {
     }
 
     // ── chat helpers ──────────────────────────────────────────────────────────
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function linkifyTxHashes(text) {
+      return escapeHtml(text).replace(
+        /0x[a-fA-F0-9]{64}/g,
+        hash => \`<a href="https://etherscan.io/tx/\${hash}" target="_blank" rel="noopener">\${hash.slice(0,10)}…\${hash.slice(-8)}</a>\`
+      );
+    }
+
     function renderBubble(text, type) {
       const div = document.createElement('div');
       div.className = 'msg ' + type;
-      div.textContent = text;
+      div.innerHTML = linkifyTxHashes(text);
       messages.appendChild(div);
       return div;
     }
@@ -430,7 +444,7 @@ export class RegistrationServer {
               claudeText = '';
             }
             claudeText += evt.content;
-            claudeMsg.textContent = claudeText;
+            claudeMsg.innerHTML = linkifyTxHashes(claudeText);
             messages.scrollTop = messages.scrollHeight;
           } else if (evt.type === 'tool') {
             // Save the accumulated claude bubble before the tool bubble
