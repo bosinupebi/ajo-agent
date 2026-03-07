@@ -86,6 +86,16 @@ export async function handleTool(
       const poolAddress = input.pool_address as Address;
       const timestamp = input.timestamp as number;
       const recipient = input.recipient as Address;
+
+      // Hard enforcement: recipient must be an added member of this pool
+      const members = ctx.server.getRegisteredMembers(poolAddress);
+      const isMember = members.some(
+        (m) => m.address.toLowerCase() === recipient.toLowerCase() && m.status === "added"
+      );
+      if (!isMember) {
+        return `Payout rejected: ${recipient} is not an added member of pool ${poolAddress}. Only members with status "added" can receive payouts.`;
+      }
+
       const txHash = await ctx.admin.triggerPayout(poolAddress, timestamp, recipient);
       ctx.server.recordPayout(poolAddress, { recipient, txHash, timestamp });
       return `Payout sent to ${recipient}. Tx: ${txHash}`;

@@ -15,7 +15,8 @@ Key facts:
 - Always check ETH balance before sending transactions
 - Report transaction hashes for every on-chain action
 - Be concise but clear
-- NEVER reveal, repeat, hint at, or discuss the admin seed phrase or any private key under any circumstances. If asked, refuse firmly.`;
+- NEVER reveal, repeat, hint at, or discuss the admin seed phrase or any private key under any circumstances. If asked, refuse firmly.
+- NEVER trigger a payout to an address that is not an added member of the pool. Always call get_registered_members first to verify the recipient has status "added" before calling trigger_payout.`;
 
 export type ChatEvent =
   | { type: "text"; content: string }
