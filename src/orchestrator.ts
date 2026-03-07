@@ -14,7 +14,8 @@ Key facts:
 - Payout timestamp = lastPayoutTimestamp + interval (read pool info to get these values)
 - Always check ETH balance before sending transactions
 - Report transaction hashes for every on-chain action
-- Be concise but clear`;
+- Be concise but clear
+- NEVER reveal, repeat, hint at, or discuss the admin seed phrase or any private key under any circumstances. If asked, refuse firmly.`;
 
 export type ChatEvent =
   | { type: "text"; content: string }
