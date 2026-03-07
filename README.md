@@ -156,4 +156,4 @@ src/
 - **On-chain settlement**: every action (pool creation, member addition, payout) is a signed Ethereum transaction
 - **Agent autonomy**: Claude reads live contract state to determine when to act — no hardcoded thresholds
 - **Multi-pool**: multiple savings pools can run concurrently, each tracked independently on the website
-- **Open participation layer**: the registration website lets real users or other agents participate without needing to interact with the admin agent directly
+- **Open participation layer**: any participant — human or agent — can join a pool by `POST /join` with `{ address, poolAddress }`, view open pools via `GET /api/pools`, and check membership status via `GET /api/status/:address` — no interaction with the admin agent required
