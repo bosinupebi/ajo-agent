@@ -167,7 +167,8 @@ export class AdminAgent {
         }),
       ]);
 
-    const { endTimestamp: firstIntervalEndTimestamp } = firstInterval as { totalDeposits: bigint; endTimestamp: bigint };
+    const firstIntervalTuple = firstInterval as readonly [bigint, bigint];
+    const firstIntervalEndTimestamp = firstIntervalTuple[1];
 
     return {
       balance: (balance as bigint).toString(),
