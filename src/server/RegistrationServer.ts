@@ -22,6 +22,13 @@ interface MemberRecord {
   joinedAt: string;
 }
 
+export interface PayoutRecord {
+  recipient: string;
+  txHash: string;
+  timestamp: number;
+  paidAt: string;
+}
+
 interface WaitHandle {
   poolAddress: string;
   count: number;
@@ -32,6 +39,7 @@ export class RegistrationServer {
   private app = express();
   private pools = new Map<string, PoolRecord>();
   private members = new Map<string, MemberRecord>();
+  private payouts = new Map<string, PayoutRecord[]>();
   private waitHandles: WaitHandle[] = [];
   private orchestrator: Orchestrator | null = null;
 
@@ -56,6 +64,13 @@ export class RegistrationServer {
     if (!poolAddress) return all;
     const key = poolAddress.toLowerCase();
     return all.filter((m) => m.poolAddress === key);
+  }
+
+  recordPayout(poolAddress: string, payout: Omit<PayoutRecord, "paidAt">) {
+    const key = poolAddress.toLowerCase();
+    if (!this.payouts.has(key)) this.payouts.set(key, []);
+    this.payouts.get(key)!.push({ ...payout, paidAt: new Date().toISOString() });
+    console.log(`[Server] Payout recorded for pool ${key}: ${payout.recipient}`);
   }
 
   markMembersAdded(poolAddress: string, addresses: Address[]) {
@@ -153,6 +168,7 @@ export class RegistrationServer {
         ...pool,
         memberCount: this.poolMemberCount(pool.poolAddress.toLowerCase()),
         members: this.getRegisteredMembers(pool.poolAddress),
+        payouts: this.payouts.get(pool.poolAddress.toLowerCase()) ?? [],
       }));
       res.json(data);
     });
@@ -230,6 +246,8 @@ export class RegistrationServer {
     form.join-form input:focus { outline: none; border-color: #4f46e5; }
     form.join-form button { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: .5rem 1rem; font-size: .8rem; cursor: pointer; }
     .closed-notice { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: .6rem .9rem; font-size: .8rem; color: #991b1b; margin-top: .9rem; }
+    .payout-tx { font-family: monospace; font-size: .72rem; color: #4f46e5; text-decoration: none; }
+    .payout-tx:hover { text-decoration: underline; }
 
     /* badges */
     .badge { padding: .2rem .6rem; border-radius: 999px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
@@ -371,6 +389,12 @@ export class RegistrationServer {
         \${members.length > 0 ? \`<details class="members-list"><summary>\${members.length} member\${members.length !== 1 ? 's' : ''} registered</summary>
           \${members.map(m => \`<div class="member-row"><span class="member-addr">\${m.address.slice(0,10)}…\${m.address.slice(-8)}</span><span class="badge \${m.status}">\${m.status}</span></div>\`).join('')}
         </details>\` : ''}
+        \${(pool.payouts ?? []).length > 0 ? \`<details class="members-list"><summary>\${pool.payouts.length} payout\${pool.payouts.length !== 1 ? 's' : ''}</summary>
+          \${pool.payouts.map(p => \`<div class="member-row">
+            <span class="member-addr">\${p.recipient.slice(0,10)}…\${p.recipient.slice(-8)}</span>
+            <a class="payout-tx" href="https://etherscan.io/tx/\${p.txHash}" target="_blank" rel="noopener">\${p.txHash.slice(0,8)}…</a>
+          </div>\`).join('')}
+        </details>\` : ''}
         \${isClosed
           ? '<div class="closed-notice">Membership for this pool is closed.</div>'
           : \`<form class="join-form" method="POST" action="/join">
@@ -482,6 +506,7 @@ export class RegistrationServer {
   private renderPoolCard(pool: PoolRecord): string {
     const poolKey = pool.poolAddress.toLowerCase();
     const members = this.getRegisteredMembers(pool.poolAddress);
+    const poolPayouts = this.payouts.get(poolKey) ?? [];
     const count = members.length;
     const pct = Math.min(100, Math.round((count / pool.requiredCount) * 100));
     const contribution = (Number(pool.contribution) / 1_000_000).toFixed(2);
@@ -507,6 +532,12 @@ export class RegistrationServer {
   </div>
   ${members.length > 0 ? `<details class="members-list"><summary>${count} member${count !== 1 ? "s" : ""} registered</summary>
     ${members.map((m) => `<div class="member-row"><span class="member-addr">${m.address.slice(0, 10)}…${m.address.slice(-8)}</span><span class="badge ${m.status}">${m.status}</span></div>`).join("")}
+  </details>` : ""}
+  ${poolPayouts.length > 0 ? `<details class="members-list"><summary>${poolPayouts.length} payout${poolPayouts.length !== 1 ? "s" : ""}</summary>
+    ${poolPayouts.map((p) => `<div class="member-row">
+      <span class="member-addr">${p.recipient.slice(0, 10)}…${p.recipient.slice(-8)}</span>
+      <a class="payout-tx" href="https://etherscan.io/tx/${p.txHash}" target="_blank" rel="noopener">${p.txHash.slice(0, 8)}…</a>
+    </div>`).join("")}
   </details>` : ""}
   ${isClosed
     ? `<div class="closed-notice">Membership for this pool is closed.</div>`

@@ -87,6 +87,7 @@ export async function handleTool(
       const timestamp = input.timestamp as number;
       const recipient = input.recipient as Address;
       const txHash = await ctx.admin.triggerPayout(poolAddress, timestamp, recipient);
+      ctx.server.recordPayout(poolAddress, { recipient, txHash, timestamp });
       return `Payout sent to ${recipient}. Tx: ${txHash}`;
     }
 
