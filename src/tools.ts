@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Address } from "viem";
 import type { AdminAgent } from "./agents/AdminAgent.js";
 import type { RegistrationServer } from "./server/RegistrationServer.js";
-import { FACTORY_ADDRESS } from "./config.js";
+import { FACTORY_ADDRESS, REGISTRATION_PORT } from "./config.js";
 
 export interface ToolContext {
   admin: AdminAgent;
@@ -28,34 +28,36 @@ export async function handleTool(
     case "create_savings_pool": {
       const intervalSeconds = input.interval_seconds as number;
       const contributionRaw = input.contribution_raw as number;
+      const requiredCount = input.required_count as number;
       const result = await ctx.admin.createSavingsPool(
         FACTORY_ADDRESS as Address,
         intervalSeconds,
         contributionRaw
       );
-      ctx.server.setPoolInfo({
+      ctx.server.addPool({
         poolAddress: result.poolAddress,
         contribution: contributionRaw.toString(),
         interval: intervalSeconds.toString(),
-        memberCount: 0,
-        requiredCount: 0,
+        requiredCount,
       });
-      return `Pool deployed at ${result.poolAddress}. Tx: ${result.txHash}. Registration site is live.`;
+      return `Pool deployed at ${result.poolAddress}. Tx: ${result.txHash}. Now visible on the registration site at http://localhost:${REGISTRATION_PORT}`;
     }
 
     case "get_registered_members": {
-      const members = ctx.server.getRegisteredMembers();
+      const poolAddress = input.pool_address as string | undefined;
+      const members = ctx.server.getRegisteredMembers(poolAddress);
       if (members.length === 0) return "No members have signed up yet.";
       return (
-        `${members.length} member(s) registered:\n` +
+        `${members.length} member(s):\n` +
         members.map((m) => `  ${m.address} — ${m.status}`).join("\n")
       );
     }
 
     case "wait_for_members": {
+      const poolAddress = input.pool_address as string;
       const count = input.count as number;
-      console.log(`\n[Waiting for ${count} member(s) to sign up at http://localhost:3000...]\n`);
-      const addresses = await ctx.server.waitForMembers(count);
+      console.log(`\n[Waiting for ${count} member(s) on pool ${poolAddress}...]\n`);
+      const addresses = await ctx.server.waitForMembers(poolAddress, count);
       return `${addresses.length} member(s) signed up: ${addresses.join(", ")}`;
     }
 
@@ -63,7 +65,7 @@ export async function handleTool(
       const poolAddress = input.pool_address as Address;
       const memberAddresses = input.member_addresses as Address[];
       const txHash = await ctx.admin.addMembers(poolAddress, memberAddresses);
-      ctx.server.markMembersAdded(memberAddresses);
+      ctx.server.markMembersAdded(poolAddress, memberAddresses);
       return `Members added on-chain. Tx: ${txHash}`;
     }
 
@@ -106,7 +108,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "create_savings_pool",
-    description: "Deploy a new AjoV1 savings pool. USDT (6 decimals) is always the contribution token.",
+    description: "Deploy a new AjoV1 savings pool and register it on the website. USDT (6 decimals) is always the contribution token.",
     input_schema: {
       type: "object",
       properties: {
@@ -118,40 +120,51 @@ export const tools: Anthropic.Tool[] = [
           type: "number",
           description: "Contribution amount in raw USDT units (e.g. 1000000 = 1 USDT)",
         },
+        required_count: {
+          type: "number",
+          description: "Number of members required to fill this pool. When reached the site shows 'Membership Closed'.",
+        },
       },
-      required: ["interval_seconds", "contribution_raw"],
+      required: ["interval_seconds", "contribution_raw", "required_count"],
     },
   },
   {
     name: "get_registered_members",
-    description: "Check how many members have signed up via the registration website and their current status",
-    input_schema: { type: "object", properties: {}, required: [] },
-  },
-  {
-    name: "wait_for_members",
-    description: "Block until a specific number of members have signed up via the website. Use this when the user asks you to wait for N members.",
+    description: "Check who has signed up via the website, optionally filtered by pool address",
     input_schema: {
       type: "object",
       properties: {
-        count: {
-          type: "number",
-          description: "Number of member signups to wait for",
+        pool_address: {
+          type: "string",
+          description: "Optional: filter by a specific pool address",
         },
       },
-      required: ["count"],
+      required: [],
+    },
+  },
+  {
+    name: "wait_for_members",
+    description: "Block until a specific number of members have signed up for a pool. Use when the user asks you to wait for N members.",
+    input_schema: {
+      type: "object",
+      properties: {
+        pool_address: { type: "string", description: "The pool to watch" },
+        count: { type: "number", description: "Number of signups to wait for" },
+      },
+      required: ["pool_address", "count"],
     },
   },
   {
     name: "add_members",
-    description: "Add member addresses to the pool on-chain. Call get_registered_members first to get the addresses.",
+    description: "Add member addresses to the pool on-chain and update their status on the website.",
     input_schema: {
       type: "object",
       properties: {
-        pool_address: { type: "string", description: "The savings pool contract address" },
+        pool_address: { type: "string" },
         member_addresses: {
           type: "array",
           items: { type: "string" },
-          description: "Ethereum addresses to add as members",
+          description: "Addresses to add",
         },
       },
       required: ["pool_address", "member_addresses"],
@@ -159,7 +172,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "get_pool_info",
-    description: "Read pool state: balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp",
+    description: "Read live pool state from the contract: balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp",
     input_schema: {
       type: "object",
       properties: {
@@ -170,7 +183,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "trigger_payout",
-    description: "Trigger a payout to a recipient. Use lastPayoutTimestamp + interval as the timestamp. Read pool info first to get these values.",
+    description: "Trigger a payout to a recipient. Use lastPayoutTimestamp + interval as the timestamp. Read pool info first.",
     input_schema: {
       type: "object",
       properties: {
