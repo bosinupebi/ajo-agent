@@ -1,0 +1,23 @@
+{
+  "name": "ajo-agent",
+  "version": "1.0.0",
+  "description": "Admin agent that deploys an AjoV1 savings pool and runs a member registration website",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/admin.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@tetherto/wdk": "latest",
+    "@tetherto/wdk-wallet-evm": "latest",
+    "dotenv": "latest",
+    "express": "^4.19.2",
+    "viem": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
