@@ -34,24 +34,22 @@ The admin never manually submits a transaction. Claude reasons over on-chain sta
 ## Architecture
 
 ```
-You (operator)
-    │  natural language instructions
-    ▼
-Claude (claude-opus-4-6)
-    │  tool calls
-    ▼
-AdminAgent  ──────────────────────────────────► Ethereum Mainnet
-  WDK self-custodial wallet                      AjoV1Factory
-  viem ABI encoding                              AjoV1SavingsPool (×N)
-  on-chain reads + writes                        USDT (ERC-20)
-    │
-    ▼
-RegistrationServer (Express)
-  localhost:3000
-  Pool cards with live member tracking
-  Members submit their address to join
-  Membership Closed badge when pool is full
+http://localhost:3000
+  ├── Chat panel (right)       You type instructions to Claude here
+  │     POST /api/chat ──────► Orchestrator (SSE stream back)
+  │                                │  tool calls
+  │                                ▼
+  │                            AdminAgent ──────────────► Ethereum Mainnet
+  │                              WDK wallet                AjoV1Factory
+  │                              viem ABI encoding         AjoV1SavingsPool (×N)
+  │                                                        USDT (ERC-20)
+  │
+  └── Pool cards (left)        Members join open pools here
+        POST /join ──────────► RegistrationServer (tracks signups)
+        GET  /api/pools ──────► Auto-refreshes every 8s
 ```
+
+Everything happens through the browser at `http://localhost:3000`. There is no terminal interaction after `npm start`.
 
 Claude has access to the following tools:
 
@@ -71,45 +69,52 @@ Claude has access to the following tools:
 ## Running it
 
 ```bash
-cp .env.example .env   # fill in seed phrase, API key, factory address
+cp .env.example .env   # fill in ANTHROPIC_API_KEY, ADMIN_SEED_PHRASE, MAINNET_FACTORY_ADDRESS
 npm install
 npm start
 ```
 
-Then instruct Claude in plain language:
+Then open **`http://localhost:3000`** in your browser. That's it — everything else happens in the UI.
+
+**Admin** — use the chat panel on the right to instruct Claude:
 
 ```
-You: Create a pool for 3 members with a 7 day interval and 1 USDT contribution
-Claude: [deploys pool, card appears at localhost:3000 showing 0/3 members]
+Create a pool for 3 members with a 7 day interval and 1 USDT contribution
+→ Pool deployed, card appears on the left showing 0/3 members
 
-You: Create another pool for 5 members with a 30 day interval and 5 USDT
-Claude: [deploys second pool, second card appears alongside the first]
+Create another pool for 5 members with a 30 day interval and 5 USDT
+→ Second card appears alongside the first
 
-You: Wait for 3 members on the first pool then add them
-Claude: [waits... adds on-chain once 3 sign up, site shows "Membership Closed"]
+Wait for 3 members on the first pool then add them
+→ Claude waits... adds on-chain once 3 sign up, card shows "Membership Closed"
 
-You: Check pool balance and tell me when payout is due
-Claude: [reads contract state, reports interval progress]
-
-You: Trigger payout to the first member
-Claude: [computes timestamp from pool state, sends payout tx]
+Trigger payout to 0xabc...
+→ Claude reads pool state, computes timestamp, sends tx — hash appears as a clickable Etherscan link
 ```
 
-Members visit `http://localhost:3000`, see all open pools, and submit their Ethereum address to join. No seed phrases required from members.
+**Members** — visit the same URL, see all open pools, and submit their Ethereum address to join. No seed phrases required from members. Chat history is preserved across page refreshes.
 
 ---
 
-## Registration website
+## The UI (`http://localhost:3000`)
 
-Each pool appears as a card showing:
+A single page split into two panels:
+
+**Left — Pool cards** (auto-refresh every 8s)
 - Pool contract address
 - Contribution amount and interval
 - Member progress bar (e.g. `3 / 5`)
-- Collapsible member list with pending/added status per address
-- **"Membership Closed"** badge and notice when the required count is reached
-- Join form (hidden once membership is closed)
+- Collapsible member list with `pending` / `added` status per address
+- **"Membership Closed"** badge when the required count is reached
+- Join form per pool (hidden once closed)
 
-The page auto-refreshes every 5 seconds.
+**Right — Agent chat**
+- Send natural language instructions to Claude
+- Responses stream in real time
+- Tool calls shown as system bubbles
+- Transaction hashes are clickable Etherscan links
+- Chat history persists in `localStorage` across refreshes
+- Clear button to reset the conversation
 
 ---
 
@@ -129,8 +134,8 @@ The page auto-refreshes every 5 seconds.
 
 ```
 src/
-├── admin.ts                       Entry point — starts server and Claude chat
-├── orchestrator.ts                Interactive Claude REPL loop
+├── admin.ts                       Entry point — starts server (no terminal interaction after)
+├── orchestrator.ts                Claude agentic loop, driven by POST /api/chat
 ├── tools.ts                       Tool definitions and handlers
 ├── config.ts                      Environment variable loading
 ├── abis.ts                        AjoV1 and ERC-20 contract ABIs
