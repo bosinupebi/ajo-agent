@@ -285,10 +285,11 @@ export class RegistrationServer {
 
     <!-- Chat -->
     <div class="chat-panel">
-      <div class="chat-panel-header">Agent</div>
-      <div class="chat-messages" id="messages">
-        <div class="msg claude">Hi! I'm your Ajo pool agent. Tell me what you'd like to do — e.g. "Create a pool for 3 members with a 7-day interval and 1 USDT contribution".</div>
+      <div class="chat-panel-header">
+        Agent
+        <button id="clear-chat" style="float:right;background:none;border:none;font-size:.7rem;color:#bbb;cursor:pointer;padding:0">Clear</button>
       </div>
+      <div class="chat-messages" id="messages"></div>
       <div class="chat-input-wrap">
         <textarea id="input" placeholder="Message the agent…" rows="2"></textarea>
         <button id="send">Send</button>
@@ -300,18 +301,45 @@ export class RegistrationServer {
     const messages = document.getElementById('messages');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
+    const STORAGE_KEY = 'ajo-chat-history';
 
-    // Auto-refresh pool panel every 8s without touching chat
+    // ── localStorage helpers ──────────────────────────────────────────────────
+    function loadHistory() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+      catch { return []; }
+    }
+
+    function saveHistory(history) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    }
+
+    // history entries: { type: 'user'|'claude'|'tool'|'error', content: string }
+    let history = loadHistory();
+
+    // ── render saved history on load ─────────────────────────────────────────
+    if (history.length === 0) {
+      const welcome = { type: 'claude', content: "Hi! I'm your Ajo pool agent. Tell me what you'd like to do — e.g. \"Create a pool for 3 members with a 7-day interval and 1 USDT contribution\"." };
+      history.push(welcome);
+      saveHistory(history);
+    }
+    history.forEach(({ type, content }) => renderBubble(content, type));
+    messages.scrollTop = messages.scrollHeight;
+
+    // ── clear button ─────────────────────────────────────────────────────────
+    document.getElementById('clear-chat').addEventListener('click', () => {
+      history = [];
+      saveHistory(history);
+      messages.innerHTML = '';
+    });
+
+    // ── pool panel auto-refresh every 8s ─────────────────────────────────────
     setInterval(async () => {
       const pools = document.getElementById('pools');
       const res = await fetch('/api/pools');
       const data = await res.json();
-      // Simple reload of just the pool list
-      if (data.length === 0) {
-        pools.innerHTML = '<div class="empty-notice">No pools yet — ask the agent to create one.</div>';
-      } else {
-        pools.innerHTML = data.map(renderPool).join('');
-      }
+      pools.innerHTML = data.length === 0
+        ? '<div class="empty-notice">No pools yet — ask the agent to create one.</div>'
+        : data.map(renderPool).join('');
     }, 8000);
 
     function renderPool(pool) {
@@ -350,12 +378,20 @@ export class RegistrationServer {
       </div>\`;
     }
 
-    function addMessage(text, type) {
+    // ── chat helpers ──────────────────────────────────────────────────────────
+    function renderBubble(text, type) {
       const div = document.createElement('div');
       div.className = 'msg ' + type;
       div.textContent = text;
       messages.appendChild(div);
+      return div;
+    }
+
+    function addMessage(text, type) {
+      const div = renderBubble(text, type);
       messages.scrollTop = messages.scrollHeight;
+      history.push({ type, content: text });
+      saveHistory(history);
       return div;
     }
 
@@ -367,6 +403,7 @@ export class RegistrationServer {
 
       addMessage(text, 'user');
       let claudeMsg = null;
+      let claudeText = '';
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -388,14 +425,29 @@ export class RegistrationServer {
           if (!line.startsWith('data: ')) continue;
           const evt = JSON.parse(line.slice(6));
           if (evt.type === 'text') {
-            if (!claudeMsg) claudeMsg = addMessage('', 'claude');
-            claudeMsg.textContent += evt.content;
+            if (!claudeMsg) {
+              claudeMsg = renderBubble('', 'claude');
+              claudeText = '';
+            }
+            claudeText += evt.content;
+            claudeMsg.textContent = claudeText;
             messages.scrollTop = messages.scrollHeight;
           } else if (evt.type === 'tool') {
+            // Save the accumulated claude bubble before the tool bubble
+            if (claudeMsg && claudeText) {
+              history.push({ type: 'claude', content: claudeText });
+              claudeMsg = null;
+              claudeText = '';
+            }
             addMessage('⚙ ' + evt.name.replace(/_/g, ' '), 'tool');
-            claudeMsg = null; // next text block gets a new bubble
           } else if (evt.type === 'error') {
             addMessage('Error: ' + evt.message, 'error');
+          } else if (evt.type === 'done') {
+            // Save final claude bubble if any
+            if (claudeMsg && claudeText) {
+              history.push({ type: 'claude', content: claudeText });
+            }
+            saveHistory(history);
           }
         }
       }
