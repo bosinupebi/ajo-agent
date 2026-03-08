@@ -18,7 +18,7 @@ This agent operates on top of the AjoV1 smart contracts from [ajo-public](https:
 
 Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) implemented as autonomous economic infrastructure:
 
-1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 USDT contribution"
+1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 USDC contribution"
 2. **The agent deploys the pool** via the AjoV1Factory contract and registers it on the website
 3. **A registration website opens** where members submit their Ethereum address to join any open pool
 4. **Each pool card** shows a live member progress bar, contribution amount, interval, and member list
@@ -85,10 +85,10 @@ Then open **`http://localhost:3000`** in your browser. That's it — everything 
 **Admin** — use the chat panel on the right to instruct Claude:
 
 ```
-Create a pool for 3 members with a 7 day interval and 1 USDT contribution
+Create a pool for 3 members with a 7 day interval and 1 USDC contribution
 → Pool deployed, card appears on the left showing 0/3 members
 
-Create another pool for 5 members with a 30 day interval and 5 USDT
+Create another pool for 5 members with a 30 day interval and 5 USDC
 → Second card appears alongside the first
 
 Wait for 3 members on the first pool then add them
