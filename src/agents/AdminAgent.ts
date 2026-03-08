@@ -17,7 +17,8 @@ interface PoolInfo {
   contribution: string;
   lastProcessedInterval: string;
   lastPayoutTimestamp: string;
-  firstIntervalEndTimestamp: string;
+  nextIntervalEndTimestamp: string;
+  canPayoutNow: boolean;
 }
 
 interface CreatePoolResult {
@@ -132,7 +133,7 @@ export class AdminAgent {
   }
 
   async getPoolInfo(poolAddress: Address): Promise<PoolInfo> {
-    const [balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp, firstInterval] =
+    const [balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp, totalIntervalCount] =
       await Promise.all([
         this.publicClient.readContract({
           address: poolAddress,
@@ -162,21 +163,41 @@ export class AdminAgent {
         this.publicClient.readContract({
           address: poolAddress,
           abi: savingsPoolAbi,
-          functionName: "intervals",
-          args: [0n],
+          functionName: "getAllIntervals",
         }),
       ]);
 
-    const firstIntervalTuple = firstInterval as readonly [bigint, bigint];
-    const firstIntervalEndTimestamp = firstIntervalTuple[1];
+    const lpi = lastProcessedInterval as bigint;
+    const lpt = lastPayoutTimestamp as bigint;
+    const totalCount = totalIntervalCount as bigint;
+
+    // The next interval to pay out is index 0 if no payout has ever happened,
+    // otherwise it is lastProcessedInterval + 1.
+    const nextIndex = lpi === 0n && lpt === 0n ? 0n : lpi + 1n;
+
+    let nextIntervalEndTimestamp = "N/A — next interval not created yet (members must contribute first)";
+    let canPayoutNow = false;
+
+    if (nextIndex < totalCount) {
+      const nextInterval = await this.publicClient.readContract({
+        address: poolAddress,
+        abi: savingsPoolAbi,
+        functionName: "intervals",
+        args: [nextIndex],
+      }) as readonly [bigint, bigint];
+
+      nextIntervalEndTimestamp = nextInterval[1].toString();
+      canPayoutNow = nextInterval[1] <= BigInt(Math.floor(Date.now() / 1000));
+    }
 
     return {
       balance: (balance as bigint).toString(),
       interval: (interval as bigint).toString(),
       contribution: (contribution as bigint).toString(),
-      lastProcessedInterval: (lastProcessedInterval as bigint).toString(),
-      lastPayoutTimestamp: (lastPayoutTimestamp as bigint).toString(),
-      firstIntervalEndTimestamp: firstIntervalEndTimestamp.toString(),
+      lastProcessedInterval: lpi.toString(),
+      lastPayoutTimestamp: lpt.toString(),
+      nextIntervalEndTimestamp,
+      canPayoutNow,
     };
   }
 }

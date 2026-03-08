@@ -2,8 +2,10 @@ import express, { type Request, type Response } from "express";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import type { Address } from "viem";
-import { REGISTRATION_PORT } from "../config.js";
+import { encodeFunctionData, createPublicClient, http, type Address } from "viem";
+import { mainnet } from "viem/chains";
+import { REGISTRATION_PORT, ETH_RPC_URL, USDC_ADDRESS } from "../config.js";
+import { erc20Abi, savingsPoolAbi } from "../abis.js";
 import type { Orchestrator } from "../orchestrator.js";
 
 const DB_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../data/store.json");
@@ -47,6 +49,7 @@ export class RegistrationServer {
   private payouts = new Map<string, PayoutRecord[]>();
   private waitHandles: WaitHandle[] = [];
   private orchestrator: Orchestrator | null = null;
+  private publicClient = createPublicClient({ chain: mainnet, transport: http(ETH_RPC_URL) });
 
   constructor() {
     this.loadFromDisk();
@@ -217,6 +220,86 @@ export class RegistrationServer {
       res.json(memberships);
     });
 
+    // ── Agent-friendly transaction-builder endpoints ──────────────────────────
+    // Returns encoded calldata so any agent (or wallet) can sign and broadcast.
+
+    // GET /api/tx/approve?pool_address=0x...&amount=1000000
+    // Returns the calldata to call USDC.approve(poolAddress, amount)
+    this.app.get("/api/tx/approve", (req: Request, res: Response) => {
+      const { pool_address, amount } = req.query as { pool_address?: string; amount?: string };
+      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw USDC units) are required" });
+
+      const poolAddr = pool_address.trim();
+      const pool = this.pools.get(poolAddr.toLowerCase());
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      let amountBig: bigint;
+      try { amountBig = BigInt(amount); } catch { return res.status(400).json({ error: "Invalid amount" }); }
+
+      const data = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [poolAddr as Address, amountBig],
+      });
+
+      return res.json({
+        to: USDC_ADDRESS,
+        data,
+        value: "0x0",
+        chainId: 1,
+        description: `Approve ${Number(amountBig) / 1e6} USDC spend for pool ${poolAddr}`,
+      });
+    });
+
+    // GET /api/tx/contribute?pool_address=0x...&amount=1000000
+    // Returns the calldata to call SavingsPool.contribute(amount)
+    this.app.get("/api/tx/contribute", (req: Request, res: Response) => {
+      const { pool_address, amount } = req.query as { pool_address?: string; amount?: string };
+      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw USDC units) are required" });
+
+      const poolAddr = pool_address.trim();
+      const pool = this.pools.get(poolAddr.toLowerCase());
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      let amountBig: bigint;
+      try { amountBig = BigInt(amount); } catch { return res.status(400).json({ error: "Invalid amount" }); }
+
+      if (amountBig < BigInt(pool.contribution)) {
+        return res.status(400).json({
+          error: `Amount too low. Pool requires at least ${pool.contribution} raw units (${Number(pool.contribution) / 1e6} USDC)`,
+        });
+      }
+
+      const data = encodeFunctionData({
+        abi: savingsPoolAbi,
+        functionName: "contribute",
+        args: [amountBig],
+      });
+
+      return res.json({
+        to: poolAddr,
+        data,
+        value: "0x0",
+        chainId: 1,
+        description: `Contribute ${Number(amountBig) / 1e6} USDC to pool ${poolAddr}`,
+      });
+    });
+
+    // POST /api/broadcast  { signedTx: "0x..." }
+    // Broadcasts a pre-signed raw transaction and returns the tx hash.
+    this.app.post("/api/broadcast", async (req: Request, res: Response) => {
+      const { signedTx } = req.body as { signedTx?: string };
+      if (!signedTx?.startsWith("0x")) return res.status(400).json({ error: "signedTx (hex string) is required" });
+      try {
+        const txHash = await this.publicClient.sendRawTransaction({
+          serializedTransaction: signedTx as `0x${string}`,
+        });
+        return res.json({ txHash });
+      } catch (err) {
+        return res.status(500).json({ error: String(err) });
+      }
+    });
+
     // SSE chat endpoint — streams Claude's response back to the browser
     this.app.post("/api/chat", async (req: Request, res: Response) => {
       const { message } = req.body as { message?: string };
@@ -245,14 +328,30 @@ export class RegistrationServer {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ajo — Savings Pools</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f5f5f0; color: #1a1a1a; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
     /* ── top bar ── */
-    header { padding: .9rem 1.5rem; background: white; border-bottom: 1px solid #e8e8e4; display: flex; align-items: center; gap: .75rem; flex-shrink: 0; }
+    header { padding: .9rem 1.5rem; background: white; border-bottom: 1px solid #e8e8e4; display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-shrink: 0; }
     header h1 { font-size: 1.1rem; font-weight: 700; }
     header p { font-size: .8rem; color: #888; }
+    .wallet-area { display: flex; flex-direction: column; align-items: flex-end; gap: .25rem; flex-shrink: 0; }
+    .wallet-btn { background: #4f46e5; color: white; border: none; border-radius: 8px; padding: .45rem .9rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+    .wallet-btn.connected { background: #10b981; cursor: default; }
+    .wallet-addr-display { font-size: .72rem; color: #10b981; font-family: monospace; }
+    .disconnect-btn { background: none; border: 1px solid #fecaca; color: #991b1b; border-radius: 6px; padding: .18rem .55rem; font-size: .72rem; cursor: pointer; }
+    .disconnect-btn:hover { background: #fef2f2; }
+    /* ── wallet picker modal ── */
+    .wallet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .wallet-modal { background: white; border-radius: 14px; padding: 1.25rem 1.25rem 1rem; min-width: 230px; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+    .wallet-modal-title { font-weight: 700; font-size: .9rem; margin-bottom: .85rem; }
+    .wallet-option { display: flex; align-items: center; gap: .65rem; width: 100%; background: none; border: 1.5px solid #e8e8e4; border-radius: 9px; padding: .6rem .9rem; font-size: .85rem; font-weight: 500; cursor: pointer; margin-bottom: .45rem; text-align: left; transition: border-color .15s, background .15s; }
+    .wallet-option:hover { border-color: #4f46e5; background: #f5f3ff; }
+    .wallet-option-icon { font-size: 1.2rem; line-height: 1; }
+    .wallet-modal-cancel { width: 100%; background: none; border: none; color: #aaa; font-size: .8rem; cursor: pointer; margin-top: .4rem; padding: .3rem; }
+    .wallet-modal-cancel:hover { color: #555; }
 
     /* ── main layout ── */
     .layout { display: flex; flex: 1; overflow: hidden; }
@@ -293,6 +392,24 @@ export class RegistrationServer {
     .badge.pending { background: #fef3c7; color: #92400e; }
     .badge.added { background: #d1fae5; color: #065f46; }
 
+    /* ── pool actions (approve / contribute) ── */
+    .pool-actions { border-top: 1px solid #f0f0eb; margin-top: .9rem; padding-top: .9rem; display: flex; flex-direction: column; gap: .75rem; }
+    .action-group-title { font-size: .68rem; color: #aaa; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-bottom: .35rem; }
+    .action-row { display: flex; gap: .4rem; align-items: center; }
+    .action-row input[type="number"] { flex: 1; min-width: 0; padding: .45rem .7rem; border: 1.5px solid #ddd; border-radius: 8px; font-size: .8rem; }
+    .action-row input[type="number"]:focus { outline: none; border-color: #4f46e5; }
+    .action-btn { border: none; border-radius: 8px; padding: .45rem .9rem; font-size: .8rem; cursor: pointer; white-space: nowrap; font-weight: 600; }
+    .action-btn.approve { background: #ede9fe; color: #4338ca; }
+    .action-btn.approve:hover:not(:disabled) { background: #ddd6fe; }
+    .action-btn.contribute { background: #d1fae5; color: #065f46; }
+    .action-btn.contribute:hover:not(:disabled) { background: #a7f3d0; }
+    .action-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .action-status { font-size: .72rem; padding: .3rem .6rem; border-radius: 6px; margin-top: .3rem; display: none; word-break: break-all; }
+    .action-status.pending { display: block; background: #fef3c7; color: #92400e; }
+    .action-status.success { display: block; background: #d1fae5; color: #065f46; }
+    .action-status.error { display: block; background: #fee2e2; color: #991b1b; }
+    .connect-prompt { font-size: .75rem; color: #aaa; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid #f0f0eb; text-align: center; display: none; }
+
     /* ── divider ── */
     .divider { width: 1px; background: #e8e8e4; flex-shrink: 0; }
 
@@ -324,10 +441,24 @@ export class RegistrationServer {
   </style>
 </head>
 <body>
+  <!-- Wallet picker modal -->
+  <div id="wallet-overlay" class="wallet-overlay" style="display:none" role="dialog" aria-modal="true">
+    <div class="wallet-modal">
+      <div class="wallet-modal-title">Connect Wallet</div>
+      <div id="wallet-options"></div>
+      <button class="wallet-modal-cancel" id="wallet-cancel">Cancel</button>
+    </div>
+  </div>
+
   <header>
     <div>
       <h1>Ajo Savings Pools</h1>
       <p>Chat with the agent on the right · Members join via the pool cards · Page auto-refreshes every 8s</p>
+    </div>
+    <div class="wallet-area">
+      <button id="wallet-btn" class="wallet-btn">Connect Wallet</button>
+      <span id="wallet-addr-display" class="wallet-addr-display" style="display:none"></span>
+      <button id="disconnect-btn" class="disconnect-btn" style="display:none">Disconnect</button>
     </div>
   </header>
 
@@ -356,22 +487,280 @@ export class RegistrationServer {
   </div>
 
   <script>
+    // ── Constants ─────────────────────────────────────────────────────────────
+    const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)'];
+    const POOL_ABI = ['function contribute(uint256 amount)'];
+
+    // ── Wallet state ─────────────────────────────────────────────────────────
+    let connectedAddress = null;
+    let activeProvider = null;
+
+    // Detect all available wallet providers (Phantom first, then MetaMask, then generic)
+    function getWalletProviders() {
+      const list = [];
+      if (window.phantom?.ethereum?.isPhantom) {
+        list.push({ name: 'Phantom', icon: '◎', provider: window.phantom.ethereum });
+      }
+      if (window.ethereum?.isMetaMask && !window.ethereum?.isPhantom) {
+        list.push({ name: 'MetaMask', icon: 'M', provider: window.ethereum });
+      }
+      if (list.length === 0 && window.ethereum) {
+        list.push({ name: 'Browser Wallet', icon: '⬡', provider: window.ethereum });
+      }
+      return list;
+    }
+
+    async function connectWithProvider(provider, name) {
+      try {
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+        connectedAddress = accounts[0];
+        activeProvider = provider;
+        provider.on('accountsChanged', onAccountsChanged);
+        updateWalletUI();
+        setupAllPoolActions();
+      } catch (err) {
+        console.error('Wallet connection failed (' + name + '):', err);
+      }
+    }
+
+    function onAccountsChanged(accounts) {
+      connectedAddress = accounts.length > 0 ? accounts[0] : null;
+      if (!connectedAddress) { activeProvider = null; }
+      updateWalletUI();
+      setupAllPoolActions();
+    }
+
+    function openWalletPicker() {
+      const providers = getWalletProviders();
+      if (providers.length === 0) {
+        alert('No Web3 wallet detected. Please install Phantom or MetaMask.');
+        return;
+      }
+      if (providers.length === 1) {
+        connectWithProvider(providers[0].provider, providers[0].name);
+        return;
+      }
+      // Multiple wallets — show picker modal
+      const optionsEl = document.getElementById('wallet-options');
+      optionsEl.innerHTML = providers.map((w, i) =>
+        \`<button class="wallet-option" data-idx="\${i}">
+          <span class="wallet-option-icon">\${w.icon}</span>
+          <span>\${w.name}</span>
+        </button>\`
+      ).join('');
+      optionsEl.querySelectorAll('.wallet-option').forEach((btn, i) => {
+        btn.addEventListener('click', () => {
+          closeWalletModal();
+          connectWithProvider(providers[i].provider, providers[i].name);
+        });
+      });
+      document.getElementById('wallet-overlay').style.display = 'flex';
+    }
+
+    function closeWalletModal() {
+      document.getElementById('wallet-overlay').style.display = 'none';
+    }
+
+    function disconnectWallet() {
+      connectedAddress = null;
+      activeProvider = null;
+      updateWalletUI();
+      setupAllPoolActions();
+    }
+
+    document.getElementById('wallet-btn').addEventListener('click', openWalletPicker);
+    document.getElementById('wallet-cancel').addEventListener('click', closeWalletModal);
+    document.getElementById('wallet-overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('wallet-overlay')) closeWalletModal();
+    });
+    document.getElementById('disconnect-btn').addEventListener('click', disconnectWallet);
+
+    function updateWalletUI() {
+      const btn = document.getElementById('wallet-btn');
+      const addrEl = document.getElementById('wallet-addr-display');
+      const discBtn = document.getElementById('disconnect-btn');
+      if (connectedAddress) {
+        btn.textContent = 'Connected';
+        btn.classList.add('connected');
+        addrEl.textContent = connectedAddress.slice(0, 6) + '…' + connectedAddress.slice(-4);
+        addrEl.style.display = 'block';
+        discBtn.style.display = 'block';
+      } else {
+        btn.textContent = 'Connect Wallet';
+        btn.classList.remove('connected');
+        addrEl.style.display = 'none';
+        discBtn.style.display = 'none';
+      }
+      // Update per-card action visibility based on membership
+      document.querySelectorAll('.pool-card[data-pool-address]').forEach(updateCardActions);
+    }
+
+    // Auto-detect if already connected (e.g. Phantom or MetaMask remembered)
+    (async () => {
+      const providers = getWalletProviders();
+      for (const w of providers) {
+        try {
+          const accounts = await w.provider.request({ method: 'eth_accounts' });
+          if (accounts.length > 0) {
+            connectedAddress = accounts[0];
+            activeProvider = w.provider;
+            w.provider.on('accountsChanged', onAccountsChanged);
+            updateWalletUI();
+            setupAllPoolActions();
+            break;
+          }
+        } catch { /* provider not ready yet */ }
+      }
+    })();
+
+    // ── Approve USDC ─────────────────────────────────────────────────────────
+    async function approveUSDC(poolAddress, amountStr, statusEl, btnEl) {
+      const amount = parseFloat(amountStr);
+      if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
+      statusEl.className = 'action-status pending';
+      statusEl.textContent = 'Waiting for signature…';
+      btnEl.disabled = true;
+      try {
+        const provider = new ethers.providers.Web3Provider(activeProvider);
+        const signer = provider.getSigner();
+        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+        const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
+        const tx = await usdc.approve(poolAddress, amountRaw);
+        statusEl.textContent = 'Approving…';
+        await tx.wait();
+        statusEl.className = 'action-status success';
+        statusEl.textContent = '✓ Approved! Tx: ' + tx.hash.slice(0, 10) + '…';
+        // Re-check: hide approve section if allowance now covers the contribution
+        const card = btnEl.closest('.pool-card');
+        if (card) checkAllowance(card);
+      } catch (err) {
+        statusEl.className = 'action-status error';
+        statusEl.textContent = err.reason || err.message || String(err);
+      } finally {
+        btnEl.disabled = false;
+      }
+    }
+
+    // ── Contribute to pool ────────────────────────────────────────────────────
+    async function contributeToPool(poolAddress, amountStr, contributionRaw, statusEl, btnEl) {
+      const amount = parseFloat(amountStr);
+      const minAmount = Number(contributionRaw) / 1e6;
+      if (!amount || amount < minAmount) {
+        alert('Amount must be at least ' + minAmount.toFixed(2) + ' USDC.');
+        return;
+      }
+      statusEl.className = 'action-status pending';
+      statusEl.textContent = 'Waiting for signature…';
+      btnEl.disabled = true;
+      try {
+        const provider = new ethers.providers.Web3Provider(activeProvider);
+        const signer = provider.getSigner();
+        const pool = new ethers.Contract(poolAddress, POOL_ABI, signer);
+        const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
+        const tx = await pool.contribute(amountRaw);
+        statusEl.textContent = 'Contributing…';
+        await tx.wait();
+        statusEl.className = 'action-status success';
+        statusEl.textContent = '✓ Contributed! Tx: ' + tx.hash.slice(0, 10) + '…';
+      } catch (err) {
+        statusEl.className = 'action-status error';
+        statusEl.textContent = err.reason || err.message || String(err);
+      } finally {
+        btnEl.disabled = false;
+      }
+    }
+
+    // ── Pool action wiring ────────────────────────────────────────────────────
+
+    // Show/hide actions on a single card based on whether connectedAddress is a member
+    function updateCardActions(card) {
+      const membersStr = card.dataset.members || '';
+      const members = membersStr ? membersStr.split(',').filter(Boolean) : [];
+      const isMember = !!connectedAddress && members.some(m => m === connectedAddress.toLowerCase());
+
+      const actionsEl = card.querySelector('.pool-actions');
+      const promptEl = card.querySelector('.connect-prompt');
+      if (actionsEl) actionsEl.style.display = isMember ? 'flex' : 'none';
+      if (promptEl) promptEl.style.display = (!connectedAddress && members.length > 0) ? 'block' : 'none';
+      if (isMember) checkAllowance(card);
+    }
+
+    function setupPoolActions(card) {
+      // Avoid double-binding event listeners
+      if (card.dataset.actionsWired) return;
+      card.dataset.actionsWired = '1';
+
+      const poolAddress = card.dataset.poolAddress;
+      const contributionRaw = card.dataset.contributionRaw;
+
+      const approveBtn = card.querySelector('.action-btn.approve');
+      const approveInput = card.querySelector('.approve-input');
+      const approveStatus = card.querySelector('.approve-status');
+      if (approveBtn && approveInput && approveStatus) {
+        approveBtn.addEventListener('click', () => {
+          if (!connectedAddress) { openWalletPicker(); return; }
+          approveUSDC(poolAddress, approveInput.value, approveStatus, approveBtn);
+        });
+      }
+
+      const contributeBtn = card.querySelector('.action-btn.contribute');
+      const contributeInput = card.querySelector('.contribute-input');
+      const contributeStatus = card.querySelector('.contribute-status');
+      if (contributeBtn && contributeInput && contributeStatus) {
+        contributeBtn.addEventListener('click', () => {
+          if (!connectedAddress) { openWalletPicker(); return; }
+          contributeToPool(poolAddress, contributeInput.value, contributionRaw, contributeStatus, contributeBtn);
+        });
+      }
+
+      updateCardActions(card);
+    }
+
+    function setupAllPoolActions() {
+      document.querySelectorAll('.pool-card[data-pool-address]').forEach(card => {
+        setupPoolActions(card);
+        updateCardActions(card);
+      });
+    }
+
+    // ── Allowance check ───────────────────────────────────────────────────────
+    // Hides the approve section if the current allowance already covers the pool contribution.
+    async function checkAllowance(card) {
+      if (!connectedAddress || !activeProvider) return;
+      const poolAddress = card.dataset.poolAddress;
+      const contributionRaw = card.dataset.contributionRaw;
+      const approveSection = card.querySelector('.approve-section');
+      if (!approveSection) return;
+      try {
+        const provider = new ethers.providers.Web3Provider(activeProvider);
+        const usdc = new ethers.Contract(
+          USDC_ADDRESS,
+          ['function allowance(address owner, address spender) view returns (uint256)'],
+          provider
+        );
+        const allowance = await usdc.allowance(connectedAddress, poolAddress);
+        const needed = ethers.BigNumber.from(contributionRaw);
+        approveSection.style.display = allowance.gte(needed) ? 'none' : 'block';
+      } catch (err) {
+        console.warn('[checkAllowance]', err);
+      }
+    }
+
+    // ── localStorage helpers ──────────────────────────────────────────────────
+    const STORAGE_KEY = 'ajo-chat-history';
     const messages = document.getElementById('messages');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
-    const STORAGE_KEY = 'ajo-chat-history';
 
-    // ── localStorage helpers ──────────────────────────────────────────────────
     function loadHistory() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
       catch { return []; }
     }
-
     function saveHistory(history) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
     }
 
-    // history entries: { type: 'user'|'claude'|'tool'|'error', content: string }
     let history = loadHistory();
 
     // ── render chat ───────────────────────────────────────────────────────────
@@ -386,7 +775,6 @@ export class RegistrationServer {
     }
     initChat();
 
-    // ── clear button ─────────────────────────────────────────────────────────
     document.getElementById('clear-chat').addEventListener('click', function() {
       history = [];
       saveHistory(history);
@@ -395,22 +783,53 @@ export class RegistrationServer {
 
     // ── pool panel auto-refresh every 8s ─────────────────────────────────────
     setInterval(async () => {
-      const pools = document.getElementById('pools');
+      const poolsEl = document.getElementById('pools');
       const res = await fetch('/api/pools');
       const data = await res.json();
-      pools.innerHTML = data.length === 0
+      // Full DOM rebuild — actionsWired flags reset automatically since elements are new
+      poolsEl.innerHTML = data.length === 0
         ? '<div class="empty-notice">No pools yet — ask the agent to create one.</div>'
         : data.map(renderPool).join('');
-    }, 8000);
+      setupAllPoolActions();
+    }, 10000);
+
+    function renderPoolActions(contributionUsdc) {
+      // Visibility is controlled by JS updateCardActions — always render HTML, hide by default
+      return \`
+        <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
+          <div class="approve-section">
+            <div class="action-group-title">Approve USDC</div>
+            <div class="action-row">
+              <input type="number" class="approve-input" placeholder="Amount in USDC" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <button class="action-btn approve">Approve</button>
+            </div>
+            <div class="approve-status action-status"></div>
+          </div>
+          <div>
+            <div class="action-group-title">Contribute</div>
+            <div class="action-row">
+              <input type="number" class="contribute-input" placeholder="\${contributionUsdc} USDC" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <button class="action-btn contribute">Contribute</button>
+            </div>
+            <div class="contribute-status action-status"></div>
+          </div>
+        </div>
+        <div class="connect-prompt">Connect your wallet to approve &amp; contribute (members only).</div>
+      \`;
+    }
 
     function renderPool(pool) {
       const pct = Math.min(100, Math.round((pool.memberCount / pool.requiredCount) * 100));
-      const contribution = (pool.contribution / 1_000_000).toFixed(2);
-      const intervalDays = (pool.interval / 86400).toFixed(0);
+      const contributionUsdc = (pool.contribution / 1_000_000).toFixed(2);
+      const intervalSecs = pool.interval;
+      const intervalLabel = intervalSecs < 86400
+        ? Math.round(intervalSecs / 60) + ' min'
+        : Math.round(intervalSecs / 86400) + ' days';
       const isClosed = pool.status === 'closed';
       const members = pool.members ?? [];
+      const memberAddrs = members.map(m => m.address.toLowerCase()).join(',');
 
-      return \`<div class="pool-card">
+      return \`<div class="pool-card" data-pool-address="\${pool.poolAddress.toLowerCase()}" data-contribution-raw="\${pool.contribution}" data-members="\${memberAddrs}">
         <div class="pool-header">
           <div>
             <div class="pool-title">Savings Pool</div>
@@ -419,8 +838,8 @@ export class RegistrationServer {
           <span class="badge \${pool.status}">\${isClosed ? 'Membership Closed' : 'Open'}</span>
         </div>
         <div class="pool-meta">
-          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contribution} USDC</div></div>
-          <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalDays} days</div></div>
+          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdc} USDC</div></div>
+          <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalLabel}</div></div>
         </div>
         <div class="progress-wrap">
           <div class="progress-label"><span>Members</span><span>\${pool.memberCount} / \${pool.requiredCount}</span></div>
@@ -442,6 +861,7 @@ export class RegistrationServer {
               <input type="text" name="address" placeholder="0x… your address" required />
               <button type="submit">Join</button>
             </form>\`}
+        \${renderPoolActions(contributionUsdc)}
       </div>\`;
     }
 
@@ -511,7 +931,6 @@ export class RegistrationServer {
             claudeMsg.innerHTML = linkifyTxHashes(claudeText);
             messages.scrollTop = messages.scrollHeight;
           } else if (evt.type === 'tool') {
-            // Save the accumulated claude bubble before the tool bubble
             if (claudeMsg && claudeText) {
               history.push({ type: 'claude', content: claudeText });
               claudeMsg = null;
@@ -521,7 +940,6 @@ export class RegistrationServer {
           } else if (evt.type === 'error') {
             addMessage('Error: ' + evt.message, 'error');
           } else if (evt.type === 'done') {
-            // Save final claude bubble if any
             if (claudeMsg && claudeText) {
               history.push({ type: 'claude', content: claudeText });
             }
@@ -538,6 +956,9 @@ export class RegistrationServer {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
+
+    // Wire up actions on server-rendered cards
+    setupAllPoolActions();
   </script>
 </body>
 </html>`;
@@ -549,12 +970,16 @@ export class RegistrationServer {
     const poolPayouts = this.payouts.get(poolKey) ?? [];
     const count = members.length;
     const pct = Math.min(100, Math.round((count / pool.requiredCount) * 100));
-    const contribution = (Number(pool.contribution) / 1_000_000).toFixed(2);
-    const intervalDays = (Number(pool.interval) / 86400).toFixed(0);
+    const contributionUsdc = (Number(pool.contribution) / 1_000_000).toFixed(2);
+    const intervalSecs = Number(pool.interval);
+    const intervalLabel = intervalSecs < 86400
+      ? Math.round(intervalSecs / 60) + " min"
+      : Math.round(intervalSecs / 86400) + " days";
     const isClosed = pool.status === "closed";
+    const memberAddrs = members.map((m) => m.address.toLowerCase()).join(",");
 
     return `
-<div class="pool-card">
+<div class="pool-card" data-pool-address="${poolKey}" data-contribution-raw="${pool.contribution}" data-members="${memberAddrs}">
   <div class="pool-header">
     <div>
       <div class="pool-title">Savings Pool</div>
@@ -563,8 +988,8 @@ export class RegistrationServer {
     <span class="badge ${pool.status}">${isClosed ? "Membership Closed" : "Open"}</span>
   </div>
   <div class="pool-meta">
-    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contribution} USDC</div></div>
-    <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalDays} days</div></div>
+    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdc} USDC</div></div>
+    <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalLabel}</div></div>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span>Members</span><span>${count} / ${pool.requiredCount}</span></div>
@@ -586,6 +1011,26 @@ export class RegistrationServer {
         <input type="text" name="address" placeholder="0x… your address" required />
         <button type="submit">Join</button>
       </form>`}
+  <!-- Approve & Contribute — visibility controlled by JS updateCardActions -->
+  <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
+    <div class="approve-section">
+      <div class="action-group-title">Approve USDC</div>
+      <div class="action-row">
+        <input type="number" class="approve-input" placeholder="Amount in USDC" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <button class="action-btn approve">Approve</button>
+      </div>
+      <div class="approve-status action-status"></div>
+    </div>
+    <div>
+      <div class="action-group-title">Contribute</div>
+      <div class="action-row">
+        <input type="number" class="contribute-input" placeholder="${contributionUsdc} USDC" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <button class="action-btn contribute">Contribute</button>
+      </div>
+      <div class="contribute-status action-status"></div>
+    </div>
+  </div>
+  <div class="connect-prompt">Connect your wallet to approve &amp; contribute (members only).</div>
 </div>`;
   }
 }

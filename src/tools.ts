@@ -72,20 +72,24 @@ export async function handleTool(
     case "get_pool_info": {
       const poolAddress = input.pool_address as Address;
       const info = await ctx.admin.getPoolInfo(poolAddress);
+      const intervalSecs = Number(info.interval);
+      const intervalLabel = intervalSecs < 86400
+        ? `${Math.round(intervalSecs / 60)} min`
+        : `${(intervalSecs / 86400).toFixed(1)} days`;
       return (
         `Pool ${poolAddress}:\n` +
-        `  balance:                  ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
-        `  interval:                 ${info.interval}s (${Number(info.interval) / 86400} days)\n` +
-        `  contribution:             ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
-        `  lastProcessedInterval:    ${info.lastProcessedInterval}\n` +
-        `  lastPayoutTimestamp:      ${info.lastPayoutTimestamp}\n` +
-        `  firstIntervalEndTimestamp:${info.firstIntervalEndTimestamp} (use this as payout timestamp for the first payout)`
+        `  balance:               ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
+        `  interval:              ${info.interval}s (${intervalLabel})\n` +
+        `  contribution:          ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
+        `  lastProcessedInterval: ${info.lastProcessedInterval}\n` +
+        `  lastPayoutTimestamp:   ${info.lastPayoutTimestamp}\n` +
+        `  nextIntervalEnd:       ${info.nextIntervalEndTimestamp}\n` +
+        `  canPayoutNow:          ${info.canPayoutNow ? "YES — call trigger_payout now" : "NO — interval has not ended yet or next interval not created"}`
       );
     }
 
     case "trigger_payout": {
       const poolAddress = input.pool_address as Address;
-      const timestamp = input.timestamp as number;
       const recipient = input.recipient as Address;
 
       // Hard enforcement: recipient must be an added member of this pool
@@ -97,6 +101,9 @@ export async function handleTool(
         return `Payout rejected: ${recipient} is not an added member of pool ${poolAddress}. Only members with status "added" can receive payouts.`;
       }
 
+      // Use current Unix time — the fixed contract loop finds the last interval
+      // whose endTimestamp <= timestamp, so passing now always targets the correct interval.
+      const timestamp = Math.floor(Date.now() / 1000);
       const txHash = await ctx.admin.triggerPayout(poolAddress, timestamp, recipient);
       ctx.server.recordPayout(poolAddress, { recipient, txHash, timestamp });
       return `Payout sent to ${recipient}. Tx: ${txHash}`;
@@ -184,7 +191,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "get_pool_info",
-    description: "Read live pool state from the contract: balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp",
+    description: "Read live pool state: balance, interval, contribution, lastProcessedInterval, lastPayoutTimestamp, nextIntervalEnd, and canPayoutNow. Always call this before trigger_payout.",
     input_schema: {
       type: "object",
       properties: {
@@ -195,15 +202,14 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "trigger_payout",
-    description: "Trigger a payout to a recipient. Use lastPayoutTimestamp + interval as the timestamp. Read pool info first.",
+    description: "Trigger a payout to a recipient. The timestamp is computed automatically — just provide pool_address and recipient. Only call this when get_pool_info shows canPayoutNow: YES.",
     input_schema: {
       type: "object",
       properties: {
         pool_address: { type: "string" },
-        timestamp: { type: "number", description: "Interval end timestamp (Unix seconds)" },
         recipient: { type: "string", description: "Recipient Ethereum address" },
       },
-      required: ["pool_address", "timestamp", "recipient"],
+      required: ["pool_address", "recipient"],
     },
   },
 ];
