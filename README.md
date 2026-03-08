@@ -10,7 +10,7 @@ The agent holds a self-custodial WDK wallet, deploys and manages AjoV1 rotating 
 
 ## Hackathon Submission
 
-Full submission details — tracks, team, and project overview: [hackathon-submission.html](../hackathon-submission.html)
+Full submission details — tracks, team, and project overview: [Galactica Hackathon Submission — Ajo.pdf](./Galactica%20Hackathon%20Submission%20%E2%80%94%20Ajo.pdf)
 
 ---
 
