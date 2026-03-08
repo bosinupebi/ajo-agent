@@ -2,6 +2,7 @@
   "name": "ajo-agent",
   "version": "1.0.0",
   "description": "Admin agent that deploys an AjoV1 savings pool and runs a member registration website",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "start": "tsx src/admin.ts"
