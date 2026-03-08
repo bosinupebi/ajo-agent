@@ -8,6 +8,12 @@ The agent holds a self-custodial WDK wallet, deploys and manages AjoV1 rotating 
 
 ---
 
+## Hackathon Submission
+
+Full submission details — tracks, team, and project overview: [hackathon-submission.html](../hackathon-submission.html)
+
+---
+
 ## Built on AjoV1
 
 This agent operates on top of the AjoV1 smart contracts from [ajo-public](https://github.com/bosinupebi/ajo-public) — an existing on-chain rotating savings protocol. The contracts (AjoV1Factory, AjoV1SavingsPool) were already deployed and battle-tested; this project adds an AI agent layer on top, giving the protocol autonomous management capabilities through a self-custodial WDK wallet and a Claude-powered admin interface.
