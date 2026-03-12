@@ -54,7 +54,7 @@ http://localhost:3000
   │
   └── Pool cards (left)        Members interact with open pools here
         POST /join ──────────► RegistrationServer (tracks signups)
-        GET  /api/pools ──────► Auto-refreshes every 8s
+        GET  /api/pools ──────► Auto-refreshes every 10s
         GET  /api/tx/approve ─► Returns USDC approve calldata (for agents/wallets)
         GET  /api/tx/contribute► Returns pool contribute calldata (for agents/wallets)
         POST /api/broadcast ──► Broadcasts a pre-signed raw transaction
@@ -113,7 +113,7 @@ Create a pool for 3 members with a 7 day interval and 1 USDC contribution
 
 A single page split into two panels:
 
-**Left — Pool cards** (auto-refresh every 8s)
+**Left — Pool cards** (auto-refresh every 10s)
 - Pool contract address
 - Contribution amount and interval
 - Member progress bar (e.g. `3 / 5`)

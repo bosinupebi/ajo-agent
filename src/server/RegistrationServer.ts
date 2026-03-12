@@ -453,7 +453,7 @@ export class RegistrationServer {
   <header>
     <div>
       <h1>Ajo Savings Pools</h1>
-      <p>Chat with the agent on the right · Members join via the pool cards · Page auto-refreshes every 8s</p>
+      <p>Chat with the agent on the right · Members join via the pool cards · Page auto-refreshes every 10s</p>
     </div>
     <div class="wallet-area">
       <button id="wallet-btn" class="wallet-btn">Connect Wallet</button>
@@ -781,7 +781,7 @@ export class RegistrationServer {
       initChat();
     });
 
-    // ── pool panel auto-refresh every 8s ─────────────────────────────────────
+    // ── pool panel auto-refresh every 10s ────────────────────────────────────
     setInterval(async () => {
       const poolsEl = document.getElementById('pools');
       const res = await fetch('/api/pools');
