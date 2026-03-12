@@ -88,7 +88,7 @@ npm start
 
 Then open **`http://localhost:3000`** in your browser. That's it — everything else happens in the UI.
 
-**Admin** — use the chat panel on the right to create pools. Everything after is automatic:
+**Admin** — use the chat panel on the right to create pools. Everything after is automatic. The chat is also a manual backup — if the autonomous loop misses a step or you need to intervene, you can instruct Claude directly to add members or trigger a payout:
 
 ```
 Create a pool for 3 members with a 7 day interval and 1 USDC contribution
@@ -125,7 +125,8 @@ A single page split into two panels:
 - **Contribute** — calls `contribute(amount)` on the pool contract from the member's wallet
 
 **Right — Agent chat**
-- Send natural language instructions to Claude
+- Used to create pools and as a manual backup for the autonomous loop
+- Send natural language instructions to Claude (e.g. "add members to pool 0x..." or "trigger payout to 0x...")
 - Responses stream in real time
 - Tool calls shown as system bubbles
 - Transaction hashes are clickable Etherscan links
