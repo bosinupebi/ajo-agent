@@ -104,6 +104,7 @@ export class PoolManager {
       // Attempt payout with retries
       const timestamp = Number(readyInfo.nextIntervalEndTimestamp);
       let success = false;
+      let staleState = false; // contract rejected due to interval mismatch — need fresh state
 
       for (let attempt = 1; attempt <= MAX_PAYOUT_ATTEMPTS; attempt++) {
         try {
@@ -113,10 +114,23 @@ export class PoolManager {
           success = true;
           break;
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Contract rejected because our interval count is off (0 or >1 unprocessed).
+          // This happens when another process already paid this interval, or multiple
+          // intervals elapsed before we acted. Re-reading state will give the correct
+          // nextIntervalEndTimestamp — no point retrying with the same timestamp.
+          if (msg.includes("only process one interval at a time") || msg.includes("No full interval has passed")) {
+            console.warn(`[PoolManager] Interval state mismatch for ${poolAddress} — re-reading state before retry`);
+            staleState = true;
+            break;
+          }
           console.error(`[PoolManager] Payout attempt ${attempt}/${MAX_PAYOUT_ATTEMPTS} failed for ${recipient}:`, err);
           if (attempt < MAX_PAYOUT_ATTEMPTS) await sleep(RETRY_DELAY_MS);
         }
       }
+
+      // Re-read from chain and loop back — do NOT advance memberIndex
+      if (staleState) continue;
 
       if (!success) {
         const warning = `Payout to ${recipient} failed after ${MAX_PAYOUT_ATTEMPTS} attempts. Dismiss to retry.`;
