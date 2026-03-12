@@ -186,8 +186,49 @@ export class AdminAgent {
         args: [nextIndex],
       }) as readonly [bigint, bigint];
 
-      nextIntervalEndTimestamp = nextInterval[1].toString();
-      canPayoutNow = nextInterval[1] <= BigInt(Math.floor(Date.now() / 1000));
+      const nextIntervalEnd = nextInterval[1];
+      const now = BigInt(Math.floor(Date.now() / 1000));
+
+      // Detect old-factory contracts: they set lastPayoutTimestamp = block.timestamp (not the
+      // interval's own endTimestamp). New contracts set lastPayoutTimestamp = intervals[lpi].endTimestamp.
+      // Old contracts require an extra "sentinel" interval (intervals[nextIndex+1]) to exist before
+      // payout can be called — the sentinel is needed so the loop in payout() can back up by i-1
+      // and land on the correct targetIntervalIndex.
+      let isOldContract = false;
+      if (lpt > 0n) {
+        const lpiInterval = await this.publicClient.readContract({
+          address: poolAddress,
+          abi: savingsPoolAbi,
+          functionName: "intervals",
+          args: [lpi],
+        }) as readonly [bigint, bigint];
+        isOldContract = lpt !== lpiInterval[1];
+      }
+
+      if (isOldContract) {
+        // For old contracts, the payout timestamp must be intervals[nextIndex+1].endTimestamp
+        // so the loop lands on targetIntervalIndex = nextIndex. We can only pay out when the
+        // sentinel interval (nextIndex+1) already exists.
+        const sentinelIndex = nextIndex + 1n;
+        if (sentinelIndex < totalCount && nextIntervalEnd <= now) {
+          const sentinelInterval = await this.publicClient.readContract({
+            address: poolAddress,
+            abi: savingsPoolAbi,
+            functionName: "intervals",
+            args: [sentinelIndex],
+          }) as readonly [bigint, bigint];
+          // Old contract requires timestamp <= block.timestamp, so sentinel must also be in the past
+          nextIntervalEndTimestamp = sentinelInterval[1].toString();
+          canPayoutNow = sentinelInterval[1] <= now;
+        } else {
+          // Interval is ready but sentinel doesn't exist yet — member must contribute once more
+          nextIntervalEndTimestamp = nextIntervalEnd.toString() + " (old contract: awaiting next member contribution to enable payout)";
+          canPayoutNow = false;
+        }
+      } else {
+        nextIntervalEndTimestamp = nextIntervalEnd.toString();
+        canPayoutNow = nextIntervalEnd <= now;
+      }
     }
 
     return {
