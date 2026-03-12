@@ -2,11 +2,13 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Address } from "viem";
 import type { AdminAgent } from "./agents/AdminAgent.js";
 import type { RegistrationServer } from "./server/RegistrationServer.js";
+import type { PoolManager } from "./PoolManager.js";
 import { FACTORY_ADDRESS, REGISTRATION_PORT } from "./config.js";
 
 export interface ToolContext {
   admin: AdminAgent;
   server: RegistrationServer;
+  poolManager: PoolManager;
 }
 
 export async function handleTool(
@@ -40,6 +42,7 @@ export async function handleTool(
         interval: intervalSeconds.toString(),
         requiredCount,
       });
+      ctx.poolManager.watch(result.poolAddress, requiredCount);
       return `Pool deployed at ${result.poolAddress}. Tx: ${result.txHash}. Now visible on the registration site at http://localhost:${REGISTRATION_PORT}`;
     }
 

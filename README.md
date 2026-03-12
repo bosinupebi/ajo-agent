@@ -30,12 +30,12 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 4. **Each pool card** shows a live member progress bar, contribution amount, interval, and member list
 5. **When the required member count is reached**, the pool card shows "Membership Closed" and the join form disappears
 6. **Multiple pools** can be created and tracked simultaneously — each appears as its own card
-7. **Claude monitors signups** and decides when to call `addMembers` on-chain, updating member statuses to "added"
-8. **Claude tracks intervals** and triggers payouts to members when instructed
+7. **PoolManager automatically watches for signups** — once the required member count is reached, it calls `addMembers` on-chain without any admin prompt
+8. **PoolManager automatically triggers payouts** — it polls the contract every 60 seconds and sends each payout as soon as the interval elapses, cycling through members in signup order
 9. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
 10. **Members approve USDC and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
 
-The admin never manually submits a transaction. Claude reasons over on-chain state — balances, intervals, payout timestamps — and acts through the agent wallet.
+The admin only creates the pool. Everything after — member onboarding and payout cycles — runs autonomously in the background via `PoolManager`.
 
 ---
 
@@ -88,21 +88,21 @@ npm start
 
 Then open **`http://localhost:3000`** in your browser. That's it — everything else happens in the UI.
 
-**Admin** — use the chat panel on the right to instruct Claude:
+**Admin** — use the chat panel on the right to create pools. Everything after is automatic:
 
 ```
 Create a pool for 3 members with a 7 day interval and 1 USDC contribution
 → Pool deployed, card appears on the left showing 0/3 members
+→ PoolManager starts watching in the background
 
-Create another pool for 5 members with a 30 day interval and 5 USDC
-→ Second card appears alongside the first
+[members sign up via the registration site — no admin action needed]
+→ Once 3 members join, PoolManager calls addMembers on-chain automatically
+→ Card shows "Membership Closed", members show as "added"
 
-Wait for 3 members on the first pool then add them
-→ Claude waits... adds on-chain once 3 sign up, card shows "Membership Closed"
-
-Trigger payout to 0xabc...
-→ Claude verifies recipient is an added member, reads pool state, computes timestamp, sends tx
-→ Hash appears as a clickable Etherscan link on the pool card payout history
+[interval elapses — no admin action needed]
+→ PoolManager polls every 60s, triggers payout to member[0] automatically
+→ Repeats for each member in signup order
+→ Tx hashes appear as clickable Etherscan links on each pool card
 ```
 
 **Members** — visit the same URL, see all open pools, and submit their Ethereum address to join. No seed phrases required from members. Chat history is preserved across page refreshes.
@@ -214,6 +214,7 @@ src/
 ├── admin.ts                       Entry point — starts server (no terminal interaction after)
 ├── orchestrator.ts                Claude agentic loop, driven by POST /api/chat
 ├── tools.ts                       Tool definitions and handlers
+├── PoolManager.ts                 Autonomous background loop — member watching, addMembers, payouts
 ├── config.ts                      Environment variable loading
 ├── abis.ts                        AjoV1 and ERC-20 contract ABIs
 ├── agents/
@@ -228,6 +229,6 @@ src/
 
 - **Self-custodial**: the agent wallet is derived from a BIP-39 seed phrase via WDK — no centralised key custody
 - **On-chain settlement**: every action (pool creation, member addition, payout) is a signed Ethereum transaction
-- **Agent autonomy**: Claude reads live contract state to determine when to act — no hardcoded thresholds
+- **Agent autonomy**: after pool creation, `PoolManager` autonomously handles member onboarding and payout cycles — no further prompts required
 - **Multi-pool**: multiple savings pools can run concurrently, each tracked independently on the website
 - **Open participation layer**: any participant — human or agent — can join a pool by `POST /join`, view open pools via `GET /api/pools`, check membership status via `GET /api/status/:address`, and approve/contribute on-chain using the transaction-builder endpoints (`GET /api/tx/approve`, `GET /api/tx/contribute`, `POST /api/broadcast`) — no interaction with the admin agent required

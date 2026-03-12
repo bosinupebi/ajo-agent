@@ -1,6 +1,7 @@
 import { ADMIN_SEED_PHRASE, ETH_RPC_URL, REGISTRATION_PORT } from "./config.js";
 import { AdminAgent } from "./agents/AdminAgent.js";
 import { RegistrationServer } from "./server/RegistrationServer.js";
+import { PoolManager } from "./PoolManager.js";
 import { Orchestrator } from "./orchestrator.js";
 
 async function main() {
@@ -13,7 +14,8 @@ async function main() {
 
   const admin = new AdminAgent(account);
   const server = new RegistrationServer();
-  const orchestrator = new Orchestrator({ admin, server });
+  const poolManager = new PoolManager(admin, server);
+  const orchestrator = new Orchestrator({ admin, server, poolManager });
 
   server.setOrchestrator(orchestrator);
   await server.start();
