@@ -195,6 +195,7 @@ Broadcasts a pre-signed raw transaction via the server's RPC node and returns `{
 | `GET` | `/api/tx/approve` | Get USDC approve calldata |
 | `GET` | `/api/tx/contribute` | Get pool contribute calldata |
 | `POST` | `/api/broadcast` | Broadcast a signed raw transaction |
+| `POST` | `/api/pools/:address/clear-warning` | Dismiss a payout failure warning and retry |
 
 ---
 
