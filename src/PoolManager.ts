@@ -101,6 +101,14 @@ export class PoolManager {
         }
       }
 
+      // Log exact on-chain state before attempting payout
+      console.log(
+        `[PoolManager] Payout attempt — pool: ${poolAddress} | ` +
+        `lastProcessedInterval: ${readyInfo.lastProcessedInterval} | ` +
+        `nextIntervalEnd: ${readyInfo.nextIntervalEndTimestamp} | ` +
+        `recipient: ${recipient}`
+      );
+
       // Attempt payout with retries
       const timestamp = Number(readyInfo.nextIntervalEndTimestamp);
       let success = false;
@@ -120,7 +128,7 @@ export class PoolManager {
           // intervals elapsed before we acted. Re-reading state will give the correct
           // nextIntervalEndTimestamp — no point retrying with the same timestamp.
           if (msg.includes("only process one interval at a time") || msg.includes("No full interval has passed")) {
-            console.warn(`[PoolManager] Interval state mismatch for ${poolAddress} — re-reading state before retry`);
+            console.warn(`[PoolManager] Interval state mismatch for ${poolAddress} — waiting ${POLL_INTERVAL_MS / 1000}s then re-reading state`);
             staleState = true;
             break;
           }
@@ -129,8 +137,11 @@ export class PoolManager {
         }
       }
 
-      // Re-read from chain and loop back — do NOT advance memberIndex
-      if (staleState) continue;
+      // Re-read from chain and loop back — sleep first to avoid tight RPC loop
+      if (staleState) {
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
 
       if (!success) {
         const warning = `Payout to ${recipient} failed after ${MAX_PAYOUT_ATTEMPTS} attempts. Dismiss to retry.`;
