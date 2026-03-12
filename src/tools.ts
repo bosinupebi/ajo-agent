@@ -104,9 +104,10 @@ export async function handleTool(
         return `Payout rejected: ${recipient} is not an added member of pool ${poolAddress}. Only members with status "added" can receive payouts.`;
       }
 
-      // Use current Unix time — the fixed contract loop finds the last interval
-      // whose endTimestamp <= timestamp, so passing now always targets the correct interval.
-      const timestamp = Math.floor(Date.now() / 1000);
+      // Use the interval's endTimestamp (not Date.now()) so the value is always
+      // in the past relative to block.timestamp — avoids "Timestamp cannot be in the future".
+      const info = await ctx.admin.getPoolInfo(poolAddress);
+      const timestamp = Number(info.nextIntervalEndTimestamp);
       const txHash = await ctx.admin.triggerPayout(poolAddress, timestamp, recipient);
       ctx.server.recordPayout(poolAddress, { recipient, txHash, timestamp });
       return `Payout sent to ${recipient}. Tx: ${txHash}`;

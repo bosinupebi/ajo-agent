@@ -11,9 +11,7 @@ Key facts:
 - USDC on mainnet has 6 decimals: 1 USDC = 1,000,000 raw units
 - When the user says "create a pool with X USDC contribution", convert X to raw units
 - When the user specifies a member count, pass it as required_count to create_savings_pool
-- For the FIRST payout (lastPayoutTimestamp=0): use firstIntervalEndTimestamp from get_pool_info as the timestamp
-- For SUBSEQUENT payouts: use firstIntervalEndTimestamp + (N * interval) where N is the number of payouts already done
-- NEVER compute payout timestamp as lastPayoutTimestamp + interval — lastPayoutTimestamp is the block time of the last payout tx, not the interval boundary
+- The trigger_payout tool automatically reads nextIntervalEndTimestamp from the contract and uses it as the payout timestamp — never pass a timestamp yourself
 - Always check ETH balance before sending transactions
 - Report transaction hashes for every on-chain action
 - Be concise but clear

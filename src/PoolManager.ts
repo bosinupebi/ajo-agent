@@ -56,19 +56,22 @@ export class PoolManager {
         const recipient = member.address as Address;
         console.log(`[PoolManager] Waiting to pay ${recipient} from pool ${poolAddress}...`);
 
-        // Poll until interval is ready — check immediately, then sleep
-        while (true) {
+        // Poll until interval is ready — check immediately, then sleep.
+        // Capture info so we can reuse nextIntervalEndTimestamp as the payout timestamp.
+        let readyInfo = await this.admin.getPoolInfo(poolAddress);
+        while (!readyInfo.canPayoutNow) {
+          console.log(`[PoolManager] Pool ${poolAddress} not ready yet (nextIntervalEnd: ${readyInfo.nextIntervalEndTimestamp})`);
+          await sleep(POLL_INTERVAL_MS);
           try {
-            const info = await this.admin.getPoolInfo(poolAddress);
-            if (info.canPayoutNow) break;
-            console.log(`[PoolManager] Pool ${poolAddress} not ready yet (nextIntervalEnd: ${info.nextIntervalEndTimestamp})`);
+            readyInfo = await this.admin.getPoolInfo(poolAddress);
           } catch (pollErr) {
             console.error(`[PoolManager] Poll error for ${poolAddress}, will retry:`, pollErr);
           }
-          await sleep(POLL_INTERVAL_MS);
         }
 
-        const timestamp = Math.floor(Date.now() / 1000);
+        // Use the interval's endTimestamp — always in the past relative to block.timestamp,
+        // avoids "Timestamp cannot be in the future" revert.
+        const timestamp = Number(readyInfo.nextIntervalEndTimestamp);
         const payoutTx = await this.admin.triggerPayout(poolAddress, timestamp, recipient);
         this.server.recordPayout(poolAddress, { recipient, txHash: payoutTx, timestamp });
         console.log(`[PoolManager] Payout to ${recipient} from ${poolAddress}: tx ${payoutTx}`);
