@@ -31,8 +31,10 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 5. **When the required member count is reached**, the pool card shows "Membership Closed" and the join form disappears
 6. **Multiple pools** can be created and tracked simultaneously — each appears as its own card
 7. **PoolManager automatically watches for signups** — once the required member count is reached, it calls `addMembers` on-chain without any admin prompt
-8. **PoolManager automatically triggers payouts** — it polls the contract every 60 seconds and sends each payout as soon as the interval elapses, cycling through members in signup order
-9. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
+8. **PoolManager automatically triggers payouts** — it polls every 60 seconds, sends each payout as soon as the interval elapses, and cycles through members indefinitely as they keep contributing
+9. **On server restart**, PoolManager resumes tracking all previously closed pools automatically
+10. **Payout errors** are retried up to 3 times; on persistent failure a warning banner appears on the pool card with a dismiss button to retry
+11. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
 10. **Members approve USDC and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
 
 The admin only creates the pool. Everything after — member onboarding and payout cycles — runs autonomously in the background via `PoolManager`.
@@ -230,6 +232,6 @@ src/
 
 - **Self-custodial**: the agent wallet is derived from a BIP-39 seed phrase via WDK — no centralised key custody
 - **On-chain settlement**: every action (pool creation, member addition, payout) is a signed Ethereum transaction
-- **Agent autonomy**: after pool creation, `PoolManager` autonomously handles member onboarding and payout cycles — no further prompts required
+- **Agent autonomy**: after pool creation, `PoolManager` autonomously handles member onboarding and recurring payout cycles — no further prompts required; resumes on restart and retries failed payouts with UI feedback
 - **Multi-pool**: multiple savings pools can run concurrently, each tracked independently on the website
 - **Open participation layer**: any participant — human or agent — can join a pool by `POST /join`, view open pools via `GET /api/pools`, check membership status via `GET /api/status/:address`, and approve/contribute on-chain using the transaction-builder endpoints (`GET /api/tx/approve`, `GET /api/tx/contribute`, `POST /api/broadcast`) — no interaction with the admin agent required

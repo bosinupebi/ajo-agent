@@ -1,3 +1,4 @@
+import type { Address } from "viem";
 import { ADMIN_SEED_PHRASE, ETH_RPC_URL, REGISTRATION_PORT } from "./config.js";
 import { AdminAgent } from "./agents/AdminAgent.js";
 import { RegistrationServer } from "./server/RegistrationServer.js";
@@ -19,6 +20,15 @@ async function main() {
 
   server.setOrchestrator(orchestrator);
   await server.start();
+
+  // Resume payout tracking for any closed pools persisted from a previous session
+  const closedPools = server.getClosedPools();
+  if (closedPools.length > 0) {
+    console.log(`[Startup] Resuming payout tracking for ${closedPools.length} closed pool(s)...`);
+    for (const pool of closedPools) {
+      poolManager.resume(pool.poolAddress as Address);
+    }
+  }
 
   console.log(`Open http://localhost:${REGISTRATION_PORT} to manage pools and chat with the agent.`);
 }
