@@ -157,6 +157,10 @@ export class PoolManager {
       }
 
       memberIndex++;
+      // Sleep before the next poll — prevents back-to-back transactions when
+      // multiple intervals are ready and gives the RPC time to reflect the
+      // just-confirmed payout so getPoolInfo doesn't read stale state.
+      await sleep(POLL_INTERVAL_MS);
     }
   }
 }
