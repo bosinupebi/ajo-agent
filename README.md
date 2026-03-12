@@ -16,7 +16,7 @@ Full submission details — tracks, team, and project overview: [Galactica Hacka
 
 ## Built on AjoV1
 
-This agent operates on top of the AjoV1 smart contracts from [ajo-public](https://github.com/bosinupebi/ajo-public) — an existing on-chain rotating savings protocol. The contracts (AjoV1Factory, AjoV1SavingsPool) were already deployed and battle-tested; this project adds an AI agent layer on top, giving the protocol autonomous management capabilities through a self-custodial WDK wallet and a Claude-powered admin interface.
+This agent operates on top of the AjoV1 smart contracts from [ajo-public](https://github.com/bosinupebi/ajo-public) — an on-chain rotating savings protocol. The AjoV1Factory and AjoV1SavingsPool contracts are deployed on Ethereum Mainnet; this project adds an AI agent layer on top, giving the protocol autonomous management capabilities through a self-custodial WDK wallet and a Claude-powered admin interface.
 
 ---
 
@@ -35,7 +35,7 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 9. **On server restart**, PoolManager resumes tracking all previously closed pools automatically
 10. **Payout errors** are retried up to 3 times; on persistent failure a warning banner appears on the pool card with a dismiss button to retry
 11. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
-10. **Members approve USDC and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
+12. **Members approve USDC and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
 
 The admin only creates the pool. Everything after — member onboarding and payout cycles — runs autonomously in the background via `PoolManager`.
 
