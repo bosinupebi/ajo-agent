@@ -1,0 +1,11 @@
+Ajo Agent is TypeScript on Node.js, three layers over a single Express server.
+
+Bottom: AjoV1 Solidity contracts on Mainnet. A factory deploys savings pools tracking members, collecting USDC, and enforcing interval-based payouts. Contracts are source of truth; no database.
+
+Middle: AdminAgent wraps a WDK wallet. viem encodes every call and awaits the receipt. Payout timestamps are read from the contract's interval array — no clock skew.
+
+Top: Claude claude-opus-4-6 agentic loop until stop_reason is not "tool_use". Tools chain autonomously; no hardcoded sequencing.
+
+PoolManager runs a background loop per pool — waits for signups, adds members on-chain, then polls every 60s and triggers payouts. Retries 3 times; failures show a warning banner with a dismiss button. Resumes on restart.
+
+Members join via a vanilla HTML site. Cards refresh every 10s; MetaMask users approve and contribute directly.
