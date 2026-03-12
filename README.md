@@ -204,7 +204,7 @@ Broadcasts a pre-signed raw transaction via the server's RPC node and returns `{
 |---|---|
 | `ANTHROPIC_API_KEY` | Anthropic API key (Claude claude-opus-4-6) |
 | `ADMIN_SEED_PHRASE` | BIP-39 seed phrase for the agent's WDK wallet |
-| `MAINNET_FACTORY_ADDRESS` | AjoV1Factory — use `0x5917C946096c4Be156C1748a921051Fc9D486585` |
+| `MAINNET_FACTORY_ADDRESS` | AjoV1Factory — use `0x60719251a3e0dE6969630174a17618993c0684E3` |
 | `ETH_RPC_URL` | Mainnet RPC endpoint (default: `https://eth.drpc.org`) |
 | `REGISTRATION_PORT` | Port for the member signup site (default: `3000`) |
 
