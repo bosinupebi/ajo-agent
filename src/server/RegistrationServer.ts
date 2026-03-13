@@ -832,7 +832,7 @@ export class RegistrationServer {
       // Visibility is controlled by JS updateCardActions — always render HTML, hide by default
       return \`
         <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
-          <div class="approve-section">
+          <div class="approve-section" style="display:none;">
             <div class="action-group-title">Approve USDC</div>
             <div class="action-row">
               <input type="number" class="approve-input" placeholder="Amount in USDC" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
@@ -1051,7 +1051,7 @@ export class RegistrationServer {
       </form>`}
   <!-- Approve & Contribute — visibility controlled by JS updateCardActions -->
   <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
-    <div class="approve-section">
+    <div class="approve-section" style="display:none;">
       <div class="action-group-title">Approve USDC</div>
       <div class="action-row">
         <input type="number" class="approve-input" placeholder="Amount in USDC" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
