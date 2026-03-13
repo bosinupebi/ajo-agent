@@ -115,7 +115,7 @@ Create a pool for 3 members with a 7 day interval and 1 USDC contribution
 
 A single page split into two panels:
 
-**Left — Pool cards** (auto-refresh every 10s)
+**Left — Pool cards** (auto-refresh every 60s)
 - Pool contract address
 - Contribution amount and interval
 - Member progress bar (e.g. `3 / 5`)
