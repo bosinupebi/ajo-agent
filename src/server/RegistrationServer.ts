@@ -804,7 +804,7 @@ export class RegistrationServer {
     function initChat() {
       messages.innerHTML = '';
       if (history.length === 0) {
-        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 token contribution.', 'claude');
+        renderBubble('Hi! I am your Ajo pool agent. Pools default to USDT on Ethereum Mainnet (https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7) — or specify any ERC-20 token address when creating a pool. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDT contribution.', 'claude');
       } else {
         history.forEach(function(h) { renderBubble(h.content, h.type); });
       }
