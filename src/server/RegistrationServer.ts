@@ -849,14 +849,14 @@ export class RegistrationServer {
       setupAllPoolActions();
     }, 60000);
 
-    function renderPoolActions(contributionUsdc) {
+    function renderPoolActions(contributionUsdt) {
       // Visibility is controlled by JS updateCardActions — always render HTML, hide by default
       return \`
         <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
           <div class="approve-section" style="display:none;">
             <div class="action-group-title">Approve Token</div>
             <div class="action-row">
-              <input type="number" class="approve-input" placeholder="Amount in tokens" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <input type="number" class="approve-input" placeholder="Amount in tokens" min="\${contributionUsdt}" step="any" value="\${contributionUsdt}" />
               <button class="action-btn approve">Approve</button>
             </div>
             <div class="approve-status action-status"></div>
@@ -864,7 +864,7 @@ export class RegistrationServer {
           <div>
             <div class="action-group-title">Contribute</div>
             <div class="action-row">
-              <input type="number" class="contribute-input" placeholder="\${contributionUsdc} tokens" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <input type="number" class="contribute-input" placeholder="\${contributionUsdt} tokens" min="\${contributionUsdt}" step="any" value="\${contributionUsdt}" />
               <button class="action-btn contribute">Contribute</button>
             </div>
             <div class="contribute-status action-status"></div>
@@ -876,7 +876,7 @@ export class RegistrationServer {
 
     function renderPool(pool) {
       const pct = Math.min(100, Math.round((pool.memberCount / pool.requiredCount) * 100));
-      const contributionUsdc = (pool.contribution / 1_000_000).toFixed(2);
+      const contributionUsdt = (pool.contribution / 1_000_000).toFixed(2);
       const intervalSecs = pool.interval;
       const intervalLabel = intervalSecs < 86400
         ? Math.round(intervalSecs / 60) + ' min'
@@ -894,7 +894,7 @@ export class RegistrationServer {
           <span class="badge \${pool.status}">\${isClosed ? 'Membership Closed' : 'Open'}</span>
         </div>
         <div class="pool-meta">
-          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdc} tokens</div></div>
+          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdt} tokens</div></div>
           <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalLabel}</div></div>
         </div>
         <div class="progress-wrap">
@@ -918,7 +918,7 @@ export class RegistrationServer {
               <input type="text" name="address" placeholder="0x… your address" required />
               <button type="submit">Join</button>
             </form>\`}
-        \${renderPoolActions(contributionUsdc)}
+        \${renderPoolActions(contributionUsdt)}
       </div>\`;
     }
 
@@ -1044,7 +1044,7 @@ export class RegistrationServer {
     const payoutWarning = this.payoutWarnings.get(poolKey) ?? null;
     const count = members.length;
     const pct = Math.min(100, Math.round((count / pool.requiredCount) * 100));
-    const contributionUsdc = (Number(pool.contribution) / 1_000_000).toFixed(2);
+    const contributionUsdt = (Number(pool.contribution) / 1_000_000).toFixed(2);
     const intervalSecs = Number(pool.interval);
     const intervalLabel = intervalSecs < 86400
       ? Math.round(intervalSecs / 60) + " min"
@@ -1062,7 +1062,7 @@ export class RegistrationServer {
     <span class="badge ${pool.status}">${isClosed ? "Membership Closed" : "Open"}</span>
   </div>
   <div class="pool-meta">
-    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdc} tokens</div></div>
+    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdt} tokens</div></div>
     <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalLabel}</div></div>
   </div>
   <div class="progress-wrap">
@@ -1091,7 +1091,7 @@ export class RegistrationServer {
     <div class="approve-section" style="display:none;">
       <div class="action-group-title">Approve Token</div>
       <div class="action-row">
-        <input type="number" class="approve-input" placeholder="Amount in tokens" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <input type="number" class="approve-input" placeholder="Amount in tokens" min="${contributionUsdt}" step="any" value="${contributionUsdt}" />
         <button class="action-btn approve">Approve</button>
       </div>
       <div class="approve-status action-status"></div>
@@ -1099,7 +1099,7 @@ export class RegistrationServer {
     <div>
       <div class="action-group-title">Contribute</div>
       <div class="action-row">
-        <input type="number" class="contribute-input" placeholder="${contributionUsdc} tokens" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <input type="number" class="contribute-input" placeholder="${contributionUsdt} tokens" min="${contributionUsdt}" step="any" value="${contributionUsdt}" />
         <button class="action-btn contribute">Contribute</button>
       </div>
       <div class="contribute-status action-status"></div>
