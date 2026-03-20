@@ -24,7 +24,7 @@ This agent operates on top of the AjoV1 smart contracts from [ajo-public](https:
 
 Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) implemented as autonomous economic infrastructure:
 
-1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 USDC contribution"
+1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 token contribution"
 2. **The agent deploys the pool** via the AjoV1Factory contract and registers it on the website
 3. **A registration website opens** where members submit their Ethereum address to join any open pool
 4. **Each pool card** shows a live member progress bar, contribution amount, interval, and member list
@@ -35,7 +35,7 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 9. **On server restart**, PoolManager resumes tracking all previously closed pools automatically
 10. **Payout errors** are retried up to 3 times; on persistent failure a warning banner appears on the pool card with a dismiss button to retry
 11. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
-12. **Members approve USDC and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
+12. **Members approve the ERC-20 token and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
 
 The admin only creates the pool. Everything after — member onboarding and payout cycles — runs autonomously in the background via `PoolManager`.
 
@@ -52,15 +52,15 @@ http://localhost:3000
   │                            AdminAgent ──────────────► Ethereum Mainnet
   │                              WDK wallet                AjoV1Factory
   │                              viem ABI encoding         AjoV1SavingsPool (×N)
-  │                                                        USDC (ERC-20)
+  │                                                        ERC-20 token
   │
   └── Pool cards (left)        Members interact with open pools here
         POST /join ──────────► RegistrationServer (tracks signups)
         GET  /api/pools ──────► Auto-refreshes every 10s
-        GET  /api/tx/approve ─► Returns USDC approve calldata (for agents/wallets)
+        GET  /api/tx/approve ─► Returns ERC-20 approve calldata (for agents/wallets)
         GET  /api/tx/contribute► Returns pool contribute calldata (for agents/wallets)
         POST /api/broadcast ──► Broadcasts a pre-signed raw transaction
-        [wallet connect] ─────► Members approve USDC + contribute via injected wallet
+        [wallet connect] ─────► Members approve token + contribute via injected wallet
 ```
 
 Everything happens through the browser at `http://localhost:3000`. There is no terminal interaction after `npm start`.
@@ -93,7 +93,7 @@ Then open **`http://localhost:3000`** in your browser. That's it — everything 
 **Admin** — use the chat panel on the right to create pools. Everything after is automatic. The chat is also a manual backup — if the autonomous loop misses a step or you need to intervene, you can instruct Claude directly to add members or trigger a payout:
 
 ```
-Create a pool for 3 members with a 7 day interval and 1 USDC contribution
+Create a pool for 3 members with a 7 day interval and 1 token contribution
 → Pool deployed, card appears on the left showing 0/3 members
 → PoolManager starts watching in the background
 
@@ -123,7 +123,7 @@ A single page split into two panels:
 - **"Membership Closed"** badge when the required count is reached
 - Join form per pool (hidden once closed)
 - Collapsible payout history — recipient address and clickable Etherscan tx link per payout
-- **Approve USDC** — connects to the member's own injected wallet (MetaMask or compatible), approves the USDC spend for the pool contract
+- **Approve Token** — connects to the member's own injected wallet (MetaMask or compatible), approves the ERC-20 token spend for the pool contract
 - **Contribute** — calls `contribute(amount)` on the pool contract from the member's wallet
 
 **Right — Agent chat**
@@ -148,7 +148,7 @@ External agents can participate in pools programmatically without a browser UI.
 ```
 GET /api/tx/approve?pool_address=0x...&amount=1000000
 ```
-Returns the ABI-encoded calldata to approve USDC spending for a pool.
+Returns the ABI-encoded calldata to approve ERC-20 token spending for a pool.
 
 ```
 GET /api/tx/contribute?pool_address=0x...&amount=1000000
@@ -162,11 +162,11 @@ Returns the ABI-encoded calldata to call `contribute(amount)` on a pool.
   "data": "0x...",
   "value": "0x0",
   "chainId": 1,
-  "description": "Approve 1.00 USDC spend for pool 0x..."
+  "description": "Approve 1.00 token spend for pool 0x..."
 }
 ```
 
-The `amount` parameter is in raw USDC units (6 decimals): `1 USDC = 1000000`.
+The `amount` parameter is in the token's raw units — scaled by the token's decimals (e.g. `1000000` for 1 unit of a 6-decimal token).
 
 ### Broadcast a signed transaction
 
@@ -192,7 +192,7 @@ Broadcasts a pre-signed raw transaction via the server's RPC node and returns `{
 | `GET` | `/api/pools` | List all pools with member counts and payout history |
 | `GET` | `/api/status/:address` | Check which pools an address has joined |
 | `POST` | `/join` | Register an address for a pool (form body: `address`, `pool_address`) |
-| `GET` | `/api/tx/approve` | Get USDC approve calldata |
+| `GET` | `/api/tx/approve` | Get ERC-20 token approve calldata |
 | `GET` | `/api/tx/contribute` | Get pool contribute calldata |
 | `POST` | `/api/broadcast` | Broadcast a signed raw transaction |
 | `POST` | `/api/pools/:address/clear-warning` | Dismiss a payout failure warning and retry |
