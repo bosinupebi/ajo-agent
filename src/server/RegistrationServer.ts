@@ -804,7 +804,7 @@ export class RegistrationServer {
     function initChat() {
       messages.innerHTML = '';
       if (history.length === 0) {
-        renderBubble('Hi! I am your Ajo pool agent. Pools default to USDT on Ethereum Mainnet (https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7) — or specify any ERC-20 token address when creating a pool. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDT contribution.', 'claude');
+        renderBubbleHtml('Hi! I am your Ajo pool agent. Pools default to <a href="https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7" target="_blank" rel="noopener">USDT</a> on Ethereum Mainnet — or specify any ERC-20 token address when creating a pool. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDT contribution.', 'claude');
       } else {
         history.forEach(function(h) { renderBubble(h.content, h.type); });
       }
@@ -927,6 +927,14 @@ export class RegistrationServer {
       const div = document.createElement('div');
       div.className = 'msg ' + type;
       div.innerHTML = linkifyTxHashes(text);
+      messages.appendChild(div);
+      return div;
+    }
+
+    function renderBubbleHtml(html, type) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + type;
+      div.innerHTML = html;
       messages.appendChild(div);
       return div;
     }
