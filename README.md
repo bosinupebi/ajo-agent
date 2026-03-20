@@ -208,6 +208,7 @@ Broadcasts a pre-signed raw transaction via the server's RPC node and returns `{
 | `MAINNET_FACTORY_ADDRESS` | AjoV1Factory — use `0x33D8ED98c9b0De6bc0459BDBA1194c883E24D4A4` |
 | `ETH_RPC_URL` | Mainnet RPC endpoint (default: `https://eth.drpc.org`) |
 | `REGISTRATION_PORT` | Port for the member signup site (default: `3000`) |
+| `TOKEN_ADDRESS` | *(Optional)* ERC-20 token used for pool contributions (default: USDT on Ethereum Mainnet) |
 
 ---
 
