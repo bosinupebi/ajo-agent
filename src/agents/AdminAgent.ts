@@ -126,6 +126,7 @@ export class AdminAgent {
       to: poolAddress,
       value: 0n,
       data,
+      gas: 200000n,
     });
 
     console.log(`[AdminAgent] payout tx: ${txHash}`);
