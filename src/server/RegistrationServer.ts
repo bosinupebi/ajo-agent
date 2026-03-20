@@ -911,7 +911,7 @@ export class RegistrationServer {
     function linkifyTxHashes(text) {
       // Step 1: linkify plain URLs before any HTML is injected (strip trailing punctuation)
       const withUrls = escapeHtml(text).replace(
-        /(https?:\/\/[^\s<)"']+)/g,
+        /(https?:\\/\\/[^\\s<)"']+)/g,
         url => \`<a href="\${url}" target="_blank" rel="noopener">\${url}</a>\`
       );
       // Step 2: linkify tx hashes, skipping content already inside HTML tags
