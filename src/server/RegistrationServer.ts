@@ -909,15 +909,18 @@ export class RegistrationServer {
     }
 
     function linkifyTxHashes(text) {
-      return escapeHtml(text)
-        .replace(
-          /0x[a-fA-F0-9]{64}/g,
-          hash => \`<a href="https://etherscan.io/tx/\${hash}" target="_blank" rel="noopener">\${hash.slice(0,10)}…\${hash.slice(-8)}</a>\`
-        )
-        .replace(
-          /(https?:\/\/[^\s<]+)/g,
-          url => \`<a href="\${url}" target="_blank" rel="noopener">\${url}</a>\`
-        );
+      // Step 1: linkify plain URLs before any HTML is injected (strip trailing punctuation)
+      const withUrls = escapeHtml(text).replace(
+        /(https?:\/\/[^\s<)"']+)/g,
+        url => \`<a href="\${url}" target="_blank" rel="noopener">\${url}</a>\`
+      );
+      // Step 2: linkify tx hashes, skipping content already inside HTML tags
+      return withUrls.replace(
+        /<[^>]+>|0x[a-fA-F0-9]{64}/g,
+        match => match.startsWith('<')
+          ? match
+          : \`<a href="https://etherscan.io/tx/\${match}" target="_blank" rel="noopener">\${match.slice(0,10)}…\${match.slice(-8)}</a>\`
+      );
     }
 
     function renderBubble(text, type) {
