@@ -4,7 +4,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { encodeFunctionData, createPublicClient, http, type Address } from "viem";
 import { mainnet } from "viem/chains";
-import { REGISTRATION_PORT, ETH_RPC_URL, TOKEN_ADDRESS } from "../config.js";
+import { REGISTRATION_PORT, ETH_RPC_URL } from "../config.js";
 import { erc20Abi, savingsPoolAbi } from "../abis.js";
 import type { Orchestrator } from "../orchestrator.js";
 
@@ -15,6 +15,7 @@ export type PoolStatus = "open" | "closed";
 
 export interface PoolRecord {
   poolAddress: string;
+  tokenAddress: string;
   contribution: string;
   interval: string;
   requiredCount: number;
@@ -266,7 +267,7 @@ export class RegistrationServer {
       });
 
       return res.json({
-        to: TOKEN_ADDRESS,
+        to: pool.tokenAddress,
         data,
         value: "0x0",
         chainId: 1,
@@ -514,7 +515,6 @@ export class RegistrationServer {
 
   <script>
     // ── Constants ─────────────────────────────────────────────────────────────
-    const TOKEN_ADDRESS = '${TOKEN_ADDRESS}';
     const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)'];
     const POOL_ABI = ['function contribute(uint256 amount)'];
 
@@ -641,7 +641,7 @@ export class RegistrationServer {
     })();
 
     // ── Approve token ─────────────────────────────────────────────────────────
-    async function approveToken(poolAddress, amountStr, statusEl, btnEl) {
+    async function approveToken(poolAddress, tokenAddress, amountStr, statusEl, btnEl) {
       const amount = parseFloat(amountStr);
       if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
       statusEl.className = 'action-status pending';
@@ -650,7 +650,7 @@ export class RegistrationServer {
       try {
         const provider = new ethers.providers.Web3Provider(activeProvider);
         const signer = provider.getSigner();
-        const token = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, signer);
+        const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
         const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
         const tx = await token.approve(poolAddress, amountRaw);
         statusEl.textContent = 'Approving…';
@@ -718,6 +718,7 @@ export class RegistrationServer {
       card.dataset.actionsWired = '1';
 
       const poolAddress = card.dataset.poolAddress;
+      const tokenAddress = card.dataset.tokenAddress;
       const contributionRaw = card.dataset.contributionRaw;
 
       const approveBtn = card.querySelector('.action-btn.approve');
@@ -726,7 +727,7 @@ export class RegistrationServer {
       if (approveBtn && approveInput && approveStatus) {
         approveBtn.addEventListener('click', () => {
           if (!connectedAddress) { openWalletPicker(); return; }
-          approveToken(poolAddress, approveInput.value, approveStatus, approveBtn);
+          approveToken(poolAddress, tokenAddress, approveInput.value, approveStatus, approveBtn);
         });
       }
 
@@ -764,13 +765,14 @@ export class RegistrationServer {
     async function checkAllowance(card) {
       if (!connectedAddress || !activeProvider) return;
       const poolAddress = card.dataset.poolAddress;
+      const tokenAddress = card.dataset.tokenAddress;
       const contributionRaw = card.dataset.contributionRaw;
       const approveSection = card.querySelector('.approve-section');
       if (!approveSection) return;
       try {
         const provider = new ethers.providers.Web3Provider(activeProvider);
         const token = new ethers.Contract(
-          TOKEN_ADDRESS,
+          tokenAddress,
           ['function allowance(address owner, address spender) view returns (uint256)'],
           provider
         );
@@ -864,7 +866,7 @@ export class RegistrationServer {
       const members = pool.members ?? [];
       const memberAddrs = members.map(m => m.address.toLowerCase()).join(',');
 
-      return \`<div class="pool-card" data-pool-address="\${pool.poolAddress.toLowerCase()}" data-contribution-raw="\${pool.contribution}" data-members="\${memberAddrs}">
+      return \`<div class="pool-card" data-pool-address="\${pool.poolAddress.toLowerCase()}" data-token-address="\${pool.tokenAddress}" data-contribution-raw="\${pool.contribution}" data-members="\${memberAddrs}">
         <div class="pool-header">
           <div>
             <div class="pool-title">Savings Pool</div>
@@ -1016,7 +1018,7 @@ export class RegistrationServer {
     const memberAddrs = members.map((m) => m.address.toLowerCase()).join(",");
 
     return `
-<div class="pool-card" data-pool-address="${poolKey}" data-contribution-raw="${pool.contribution}" data-members="${memberAddrs}">
+<div class="pool-card" data-pool-address="${poolKey}" data-token-address="${pool.tokenAddress}" data-contribution-raw="${pool.contribution}" data-members="${memberAddrs}">
   <div class="pool-header">
     <div>
       <div class="pool-title">Savings Pool</div>

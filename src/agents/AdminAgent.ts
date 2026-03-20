@@ -8,7 +8,7 @@ import {
   type PublicClient,
 } from "viem";
 import { mainnet } from "viem/chains";
-import { ETH_RPC_URL, TOKEN_ADDRESS } from "../config.js";
+import { ETH_RPC_URL } from "../config.js";
 import { factoryAbi, savingsPoolAbi } from "../abis.js";
 
 interface PoolInfo {
@@ -56,12 +56,13 @@ export class AdminAgent {
   async createSavingsPool(
     factoryAddress: Address,
     intervalSeconds: number | bigint,
-    contributionRaw: number | bigint
+    contributionRaw: number | bigint,
+    tokenAddress: Address
   ): Promise<CreatePoolResult> {
     const data = encodeFunctionData({
       abi: factoryAbi,
       functionName: "createSavingsPool",
-      args: [TOKEN_ADDRESS, BigInt(intervalSeconds), BigInt(contributionRaw)],
+      args: [tokenAddress, BigInt(intervalSeconds), BigInt(contributionRaw)],
     });
 
     const { hash: txHash } = await this.account.sendTransaction({

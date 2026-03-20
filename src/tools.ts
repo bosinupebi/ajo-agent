@@ -3,7 +3,7 @@ import type { Address } from "viem";
 import type { AdminAgent } from "./agents/AdminAgent.js";
 import type { RegistrationServer } from "./server/RegistrationServer.js";
 import type { PoolManager } from "./PoolManager.js";
-import { FACTORY_ADDRESS, REGISTRATION_PORT } from "./config.js";
+import { FACTORY_ADDRESS, REGISTRATION_PORT, TOKEN_ADDRESS } from "./config.js";
 
 export interface ToolContext {
   admin: AdminAgent;
@@ -31,13 +31,16 @@ export async function handleTool(
       const intervalSeconds = input.interval_seconds as number;
       const contributionRaw = input.contribution_raw as number;
       const requiredCount = input.required_count as number;
+      const tokenAddress = (input.token_address as Address | undefined) ?? TOKEN_ADDRESS;
       const result = await ctx.admin.createSavingsPool(
         FACTORY_ADDRESS as Address,
         intervalSeconds,
-        contributionRaw
+        contributionRaw,
+        tokenAddress
       );
       ctx.server.addPool({
         poolAddress: result.poolAddress,
+        tokenAddress,
         contribution: contributionRaw.toString(),
         interval: intervalSeconds.toString(),
         requiredCount,
@@ -142,6 +145,10 @@ export const tools: Anthropic.Tool[] = [
         contribution_raw: {
           type: "number",
           description: "Contribution amount in raw token units (e.g. 1000000 = 1 token for a 6-decimal ERC-20)",
+        },
+        token_address: {
+          type: "string",
+          description: "Optional ERC-20 token address for contributions. Defaults to USDT on Ethereum Mainnet if not specified.",
         },
         required_count: {
           type: "number",

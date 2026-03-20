@@ -24,7 +24,7 @@ This agent operates on top of the AjoV1 smart contracts from [ajo-public](https:
 
 Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) implemented as autonomous economic infrastructure:
 
-1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 token contribution"
+1. **You instruct Claude** in plain language — "create a pool for 5 members with a 7-day interval and 1 USDT contribution" or specify any ERC-20 token address
 2. **The agent deploys the pool** via the AjoV1Factory contract and registers it on the website
 3. **A registration website opens** where members submit their Ethereum address to join any open pool
 4. **Each pool card** shows a live member progress bar, contribution amount, interval, and member list
@@ -71,7 +71,7 @@ Claude has access to the following tools:
 |---|---|
 | `get_admin_address` | Fetch the agent's wallet address |
 | `get_eth_balance` | Check ETH balance before transacting |
-| `create_savings_pool` | Deploy a new pool and register it on the website |
+| `create_savings_pool` | Deploy a new pool — optionally specify an ERC-20 token address, defaults to USDT |
 | `get_registered_members` | See who has signed up, optionally filtered by pool |
 | `wait_for_members` | Block until N members have signed up for a specific pool |
 | `add_members` | Add registered addresses on-chain and update their status |
@@ -93,7 +93,8 @@ Then open **`http://localhost:3000`** in your browser. That's it — everything 
 **Admin** — use the chat panel on the right to create pools. Everything after is automatic. The chat is also a manual backup — if the autonomous loop misses a step or you need to intervene, you can instruct Claude directly to add members or trigger a payout:
 
 ```
-Create a pool for 3 members with a 7 day interval and 1 token contribution
+Create a pool for 3 members with a 7 day interval and 1 USDT contribution
+Create a pool for 3 members with a 7 day interval and 1 token contribution using 0x...
 → Pool deployed, card appears on the left showing 0/3 members
 → PoolManager starts watching in the background
 
@@ -208,7 +209,7 @@ Broadcasts a pre-signed raw transaction via the server's RPC node and returns `{
 | `MAINNET_FACTORY_ADDRESS` | AjoV1Factory — use `0x33D8ED98c9b0De6bc0459BDBA1194c883E24D4A4` |
 | `ETH_RPC_URL` | Mainnet RPC endpoint (default: `https://eth.drpc.org`) |
 | `REGISTRATION_PORT` | Port for the member signup site (default: `3000`) |
-| `TOKEN_ADDRESS` | *(Optional)* ERC-20 token used for pool contributions (default: USDT on Ethereum Mainnet) |
+| `TOKEN_ADDRESS` | *(Optional)* Default ERC-20 token for pool contributions — overridden per pool at creation time (default: USDT on Ethereum Mainnet) |
 
 ---
 
