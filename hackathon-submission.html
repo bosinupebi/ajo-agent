@@ -97,7 +97,7 @@
     <p>
       Ajo — derived from the Yoruba word for "group or organisational savings" — is a decentralised rotating
       savings protocol (ROSCA) built on Ethereum. The core is the <strong>AjoV1</strong> smart contract suite:
-      a factory that deploys savings pools where groups of people pool USDC and receive payouts at fixed intervals,
+      a factory that deploys savings pools where groups of people pool ERC-20 tokens and receive payouts at fixed intervals,
       with smart contracts holding custody and eliminating the need for a trusted intermediary.
     </p>
     <br />
@@ -105,7 +105,7 @@
       Built on top of the AjoV1 contracts is <strong>ajo-agent</strong> — an autonomous AI agent powered by Claude.
       The admin creates a pool with a single natural language instruction. Everything after is automatic: a
       <strong>PoolManager</strong> background loop watches for member signups, calls <code>addMembers</code> on-chain
-      when the pool fills, then polls every 60 seconds and triggers USDC payouts in rotation — indefinitely,
+      when the pool fills, then polls every 60 seconds and triggers token payouts in rotation — indefinitely,
       across restarts, with retry logic and a warning banner for persistent failures. Members join and contribute
       directly from a browser wallet (MetaMask or compatible), while the agent coordinates all on-chain actions
       through a self-custodial WDK wallet.

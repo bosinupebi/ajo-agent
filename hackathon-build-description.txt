@@ -1,6 +1,6 @@
 Ajo Agent is TypeScript on Node.js, three layers over a single Express server.
 
-Bottom: AjoV1 Solidity contracts on Mainnet. A factory deploys savings pools tracking members, collecting USDC, and enforcing interval-based payouts. Contracts are source of truth; no database.
+Bottom: AjoV1 Solidity contracts on Mainnet. A factory deploys savings pools tracking members, collecting ERC-20 token contributions, and enforcing interval-based payouts. Contracts are source of truth; no database.
 
 Middle: AdminAgent wraps a WDK wallet. viem encodes every call and awaits the receipt. Payout timestamps are read from the contract's interval array — no clock skew.
 
