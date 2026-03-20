@@ -33,7 +33,7 @@ Ajo is a traditional rotating savings model (known as Ajo, Esusu, or ROSCA) impl
 7. **PoolManager automatically watches for signups** — once the required member count is reached, it calls `addMembers` on-chain without any admin prompt
 8. **PoolManager automatically triggers payouts** — it polls every 60 seconds, sends each payout as soon as the interval elapses, and cycles through members indefinitely as they keep contributing
 9. **On server restart**, PoolManager resumes tracking all previously closed pools automatically
-10. **Payout errors** are retried up to 3 times; on persistent failure a warning banner appears on the pool card with a dismiss button to retry
+10. **Payout errors** are retried up to 3 times; on persistent failure a warning banner appears on the pool card with a dismiss button to retry. Only confirmed (non-reverted) transactions are recorded in payout history
 11. **Payout history** is tracked per pool — recipient address and tx hash visible on each pool card
 12. **Members approve the ERC-20 token and contribute** directly from the pool card UI using their own injected wallet (MetaMask or compatible)
 
