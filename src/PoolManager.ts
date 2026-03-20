@@ -101,6 +101,13 @@ export class PoolManager {
         }
       }
 
+      // Skip payout if pool balance is 0 — members haven't contributed yet
+      if (BigInt(readyInfo.balance) === 0n) {
+        console.warn(`[PoolManager] Pool ${poolAddress} balance is 0 — waiting for contributions before paying out`);
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
+
       // Log exact on-chain state before attempting payout
       console.log(
         `[PoolManager] Payout attempt — pool: ${poolAddress} | ` +

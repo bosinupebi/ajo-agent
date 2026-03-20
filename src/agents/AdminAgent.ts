@@ -43,6 +43,15 @@ export class AdminAgent {
     });
   }
 
+  async getTxStatus(txHash: string): Promise<"success" | "reverted" | "pending"> {
+    try {
+      const receipt = await this.publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+      return receipt.status === "reverted" ? "reverted" : "success";
+    } catch {
+      return "pending"; // receipt not found — tx may still be pending or dropped
+    }
+  }
+
   async getAddress(): Promise<Address> {
     return (await this.account.getAddress()) as Address;
   }

@@ -21,6 +21,9 @@ async function main() {
   server.setOrchestrator(orchestrator);
   await server.start();
 
+  // Prune any reverted payout transactions from persisted store
+  await server.pruneRevertedPayouts(admin);
+
   // Resume payout tracking for any closed pools persisted from a previous session
   const closedPools = server.getClosedPools();
   if (closedPools.length > 0) {

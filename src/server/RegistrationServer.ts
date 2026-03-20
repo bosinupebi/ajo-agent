@@ -58,6 +58,25 @@ export class RegistrationServer {
     this.setup();
   }
 
+  async pruneRevertedPayouts(admin: import("../agents/AdminAgent.js").AdminAgent): Promise<void> {
+    let pruned = 0;
+    for (const [poolKey, records] of this.payouts) {
+      const filtered = [];
+      for (const record of records) {
+        const status = await admin.getTxStatus(record.txHash);
+        if (status === "reverted") {
+          console.log(`[Server] Pruning reverted payout tx ${record.txHash} from pool ${poolKey}`);
+          pruned++;
+        } else {
+          filtered.push(record);
+        }
+      }
+      this.payouts.set(poolKey, filtered);
+    }
+    if (pruned > 0) this.saveToDisk();
+    console.log(`[Server] Payout prune complete — removed ${pruned} reverted transaction(s)`);
+  }
+
   private loadFromDisk() {
     if (!existsSync(DB_PATH)) return;
     try {
