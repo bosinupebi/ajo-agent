@@ -909,10 +909,15 @@ export class RegistrationServer {
     }
 
     function linkifyTxHashes(text) {
-      return escapeHtml(text).replace(
-        /0x[a-fA-F0-9]{64}/g,
-        hash => \`<a href="https://etherscan.io/tx/\${hash}" target="_blank" rel="noopener">\${hash.slice(0,10)}…\${hash.slice(-8)}</a>\`
-      );
+      return escapeHtml(text)
+        .replace(
+          /0x[a-fA-F0-9]{64}/g,
+          hash => \`<a href="https://etherscan.io/tx/\${hash}" target="_blank" rel="noopener">\${hash.slice(0,10)}…\${hash.slice(-8)}</a>\`
+        )
+        .replace(
+          /(https?:\/\/[^\s<]+)/g,
+          url => \`<a href="\${url}" target="_blank" rel="noopener">\${url}</a>\`
+        );
     }
 
     function renderBubble(text, type) {
