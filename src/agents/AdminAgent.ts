@@ -130,7 +130,8 @@ export class AdminAgent {
     });
 
     console.log(`[AdminAgent] payout tx: ${txHash}`);
-    await this.publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+    if (receipt.status === "reverted") throw new Error(`Payout transaction reverted: ${txHash}`);
     return txHash;
   }
 
