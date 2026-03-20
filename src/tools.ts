@@ -81,9 +81,9 @@ export async function handleTool(
         : `${(intervalSecs / 86400).toFixed(1)} days`;
       return (
         `Pool ${poolAddress}:\n` +
-        `  balance:               ${info.balance} raw USDC (${Number(info.balance) / 1e6} USDC)\n` +
+        `  balance:               ${info.balance} raw units (${Number(info.balance) / 1e6})\n` +
         `  interval:              ${info.interval}s (${intervalLabel})\n` +
-        `  contribution:          ${info.contribution} raw USDC (${Number(info.contribution) / 1e6} USDC)\n` +
+        `  contribution:          ${info.contribution} raw units (${Number(info.contribution) / 1e6})\n` +
         `  lastProcessedInterval: ${info.lastProcessedInterval}\n` +
         `  lastPayoutTimestamp:   ${info.lastPayoutTimestamp}\n` +
         `  nextIntervalEnd:       ${info.nextIntervalEndTimestamp}\n` +
@@ -131,7 +131,7 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: "create_savings_pool",
-    description: "Deploy a new AjoV1 savings pool and register it on the website. USDC (6 decimals) is always the contribution token.",
+    description: "Deploy a new AjoV1 savings pool and register it on the website. The contribution token is an ERC-20 configured via TOKEN_ADDRESS.",
     input_schema: {
       type: "object",
       properties: {
@@ -141,7 +141,7 @@ export const tools: Anthropic.Tool[] = [
         },
         contribution_raw: {
           type: "number",
-          description: "Contribution amount in raw USDC units (e.g. 1000000 = 1 USDC)",
+          description: "Contribution amount in raw token units (e.g. 1000000 = 1 token for a 6-decimal ERC-20)",
         },
         required_count: {
           type: "number",

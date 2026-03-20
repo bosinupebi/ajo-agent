@@ -8,8 +8,8 @@ You control a wallet and can interact with the AjoV1 factory and savings pool co
 A registration website is already running where members can sign up by submitting their Ethereum address.
 
 Key facts:
-- USDC on mainnet has 6 decimals: 1 USDC = 1,000,000 raw units
-- When the user says "create a pool with X USDC contribution", convert X to raw units
+- The contribution token is an ERC-20. The default token has 6 decimals (1 token = 1,000,000 raw units), but confirm decimals if a non-standard token is used
+- When the user says "create a pool with X token contribution", convert X to raw units based on the token's decimals
 - When the user specifies a member count, pass it as required_count to create_savings_pool
 - The trigger_payout tool automatically reads nextIntervalEndTimestamp from the contract and uses it as the payout timestamp — never pass a timestamp yourself
 - Always check ETH balance before sending transactions

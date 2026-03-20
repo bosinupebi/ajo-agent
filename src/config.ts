@@ -12,7 +12,7 @@ export const REGISTRATION_PORT = parseInt(process.env.REGISTRATION_PORT || "3000
 export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY as string;
 
 
-export const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as const;
+export const TOKEN_ADDRESS = (process.env.TOKEN_ADDRESS || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") as `0x${string}`;
 
 if (!FACTORY_ADDRESS) throw new Error("Missing MAINNET_FACTORY_ADDRESS");
 if (!ADMIN_SEED_PHRASE) throw new Error("Missing ADMIN_SEED_PHRASE");

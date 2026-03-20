@@ -4,7 +4,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { encodeFunctionData, createPublicClient, http, type Address } from "viem";
 import { mainnet } from "viem/chains";
-import { REGISTRATION_PORT, ETH_RPC_URL, USDC_ADDRESS } from "../config.js";
+import { REGISTRATION_PORT, ETH_RPC_URL, TOKEN_ADDRESS } from "../config.js";
 import { erc20Abi, savingsPoolAbi } from "../abis.js";
 import type { Orchestrator } from "../orchestrator.js";
 
@@ -247,10 +247,10 @@ export class RegistrationServer {
     // Returns encoded calldata so any agent (or wallet) can sign and broadcast.
 
     // GET /api/tx/approve?pool_address=0x...&amount=1000000
-    // Returns the calldata to call USDC.approve(poolAddress, amount)
+    // Returns the calldata to call token.approve(poolAddress, amount)
     this.app.get("/api/tx/approve", (req: Request, res: Response) => {
       const { pool_address, amount } = req.query as { pool_address?: string; amount?: string };
-      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw USDC units) are required" });
+      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw token units) are required" });
 
       const poolAddr = pool_address.trim();
       const pool = this.pools.get(poolAddr.toLowerCase());
@@ -266,11 +266,11 @@ export class RegistrationServer {
       });
 
       return res.json({
-        to: USDC_ADDRESS,
+        to: TOKEN_ADDRESS,
         data,
         value: "0x0",
         chainId: 1,
-        description: `Approve ${Number(amountBig) / 1e6} USDC spend for pool ${poolAddr}`,
+        description: `Approve ${Number(amountBig) / 1e6} token spend for pool ${poolAddr}`,
       });
     });
 
@@ -278,7 +278,7 @@ export class RegistrationServer {
     // Returns the calldata to call SavingsPool.contribute(amount)
     this.app.get("/api/tx/contribute", (req: Request, res: Response) => {
       const { pool_address, amount } = req.query as { pool_address?: string; amount?: string };
-      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw USDC units) are required" });
+      if (!pool_address || !amount) return res.status(400).json({ error: "pool_address and amount (raw token units) are required" });
 
       const poolAddr = pool_address.trim();
       const pool = this.pools.get(poolAddr.toLowerCase());
@@ -289,7 +289,7 @@ export class RegistrationServer {
 
       if (amountBig < BigInt(pool.contribution)) {
         return res.status(400).json({
-          error: `Amount too low. Pool requires at least ${pool.contribution} raw units (${Number(pool.contribution) / 1e6} USDC)`,
+          error: `Amount too low. Pool requires at least ${pool.contribution} raw units (${Number(pool.contribution) / 1e6} tokens)`,
         });
       }
 
@@ -304,7 +304,7 @@ export class RegistrationServer {
         data,
         value: "0x0",
         chainId: 1,
-        description: `Contribute ${Number(amountBig) / 1e6} USDC to pool ${poolAddr}`,
+        description: `Contribute ${Number(amountBig) / 1e6} tokens to pool ${poolAddr}`,
       });
     });
 
@@ -514,7 +514,7 @@ export class RegistrationServer {
 
   <script>
     // ── Constants ─────────────────────────────────────────────────────────────
-    const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const TOKEN_ADDRESS = '${TOKEN_ADDRESS}';
     const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)'];
     const POOL_ABI = ['function contribute(uint256 amount)'];
 
@@ -640,8 +640,8 @@ export class RegistrationServer {
       }
     })();
 
-    // ── Approve USDC ─────────────────────────────────────────────────────────
-    async function approveUSDC(poolAddress, amountStr, statusEl, btnEl) {
+    // ── Approve token ─────────────────────────────────────────────────────────
+    async function approveToken(poolAddress, amountStr, statusEl, btnEl) {
       const amount = parseFloat(amountStr);
       if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
       statusEl.className = 'action-status pending';
@@ -650,9 +650,9 @@ export class RegistrationServer {
       try {
         const provider = new ethers.providers.Web3Provider(activeProvider);
         const signer = provider.getSigner();
-        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+        const token = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, signer);
         const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
-        const tx = await usdc.approve(poolAddress, amountRaw);
+        const tx = await token.approve(poolAddress, amountRaw);
         statusEl.textContent = 'Approving…';
         await tx.wait();
         statusEl.className = 'action-status success';
@@ -673,7 +673,7 @@ export class RegistrationServer {
       const amount = parseFloat(amountStr);
       const minAmount = Number(contributionRaw) / 1e6;
       if (!amount || amount < minAmount) {
-        alert('Amount must be at least ' + minAmount.toFixed(2) + ' USDC.');
+        alert('Amount must be at least ' + minAmount.toFixed(2) + ' tokens.');
         return;
       }
       statusEl.className = 'action-status pending';
@@ -726,7 +726,7 @@ export class RegistrationServer {
       if (approveBtn && approveInput && approveStatus) {
         approveBtn.addEventListener('click', () => {
           if (!connectedAddress) { openWalletPicker(); return; }
-          approveUSDC(poolAddress, approveInput.value, approveStatus, approveBtn);
+          approveToken(poolAddress, approveInput.value, approveStatus, approveBtn);
         });
       }
 
@@ -769,12 +769,12 @@ export class RegistrationServer {
       if (!approveSection) return;
       try {
         const provider = new ethers.providers.Web3Provider(activeProvider);
-        const usdc = new ethers.Contract(
-          USDC_ADDRESS,
+        const token = new ethers.Contract(
+          TOKEN_ADDRESS,
           ['function allowance(address owner, address spender) view returns (uint256)'],
           provider
         );
-        const allowance = await usdc.allowance(connectedAddress, poolAddress);
+        const allowance = await token.allowance(connectedAddress, poolAddress);
         const needed = ethers.BigNumber.from(contributionRaw);
         approveSection.style.display = allowance.gte(needed) ? 'none' : 'block';
       } catch (err) {
@@ -802,7 +802,7 @@ export class RegistrationServer {
     function initChat() {
       messages.innerHTML = '';
       if (history.length === 0) {
-        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 USDC contribution.', 'claude');
+        renderBubble('Hi! I am your Ajo pool agent. Tell me what you would like to do — e.g. create a pool for 3 members with a 7-day interval and 1 token contribution.', 'claude');
       } else {
         history.forEach(function(h) { renderBubble(h.content, h.type); });
       }
@@ -833,9 +833,9 @@ export class RegistrationServer {
       return \`
         <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
           <div class="approve-section" style="display:none;">
-            <div class="action-group-title">Approve USDC</div>
+            <div class="action-group-title">Approve Token</div>
             <div class="action-row">
-              <input type="number" class="approve-input" placeholder="Amount in USDC" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <input type="number" class="approve-input" placeholder="Amount in tokens" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
               <button class="action-btn approve">Approve</button>
             </div>
             <div class="approve-status action-status"></div>
@@ -843,7 +843,7 @@ export class RegistrationServer {
           <div>
             <div class="action-group-title">Contribute</div>
             <div class="action-row">
-              <input type="number" class="contribute-input" placeholder="\${contributionUsdc} USDC" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
+              <input type="number" class="contribute-input" placeholder="\${contributionUsdc} tokens" min="\${contributionUsdc}" step="any" value="\${contributionUsdc}" />
               <button class="action-btn contribute">Contribute</button>
             </div>
             <div class="contribute-status action-status"></div>
@@ -873,7 +873,7 @@ export class RegistrationServer {
           <span class="badge \${pool.status}">\${isClosed ? 'Membership Closed' : 'Open'}</span>
         </div>
         <div class="pool-meta">
-          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdc} USDC</div></div>
+          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdc} tokens</div></div>
           <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalLabel}</div></div>
         </div>
         <div class="progress-wrap">
@@ -1025,7 +1025,7 @@ export class RegistrationServer {
     <span class="badge ${pool.status}">${isClosed ? "Membership Closed" : "Open"}</span>
   </div>
   <div class="pool-meta">
-    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdc} USDC</div></div>
+    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdc} tokens</div></div>
     <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalLabel}</div></div>
   </div>
   <div class="progress-wrap">
@@ -1052,9 +1052,9 @@ export class RegistrationServer {
   <!-- Approve & Contribute — visibility controlled by JS updateCardActions -->
   <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
     <div class="approve-section" style="display:none;">
-      <div class="action-group-title">Approve USDC</div>
+      <div class="action-group-title">Approve Token</div>
       <div class="action-row">
-        <input type="number" class="approve-input" placeholder="Amount in USDC" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <input type="number" class="approve-input" placeholder="Amount in tokens" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
         <button class="action-btn approve">Approve</button>
       </div>
       <div class="approve-status action-status"></div>
@@ -1062,7 +1062,7 @@ export class RegistrationServer {
     <div>
       <div class="action-group-title">Contribute</div>
       <div class="action-row">
-        <input type="number" class="contribute-input" placeholder="${contributionUsdc} USDC" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
+        <input type="number" class="contribute-input" placeholder="${contributionUsdc} tokens" min="${contributionUsdc}" step="any" value="${contributionUsdc}" />
         <button class="action-btn contribute">Contribute</button>
       </div>
       <div class="contribute-status action-status"></div>
