@@ -28,7 +28,7 @@ interface CreatePoolResult {
 
 interface WdkAccount {
   getAddress(): Promise<string>;
-  sendTransaction: (tx: { to: string; value: number | bigint; data?: string }) => Promise<{ hash: string }>;
+  sendTransaction: (tx: { to: string; value: number | bigint; data?: string; gasLimit?: number | bigint }) => Promise<{ hash: string }>;
 }
 
 export class AdminAgent {
@@ -135,7 +135,7 @@ export class AdminAgent {
       to: poolAddress,
       value: 0n,
       data,
-      gas: 200000n,
+      gasLimit: 200000n,
     });
 
     console.log(`[AdminAgent] payout tx: ${txHash}`);

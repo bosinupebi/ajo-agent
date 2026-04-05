@@ -10,7 +10,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
     "@tetherto/wdk": "latest",
-    "@tetherto/wdk-wallet-evm": "latest",
+    "@tetherto/wdk-wallet-evm": "1.0.0-beta.7",
     "dotenv": "latest",
     "express": "^4.19.2",
     "viem": "latest"
