@@ -9,7 +9,8 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 import { ETH_RPC_URL } from "../config.js";
-import { factoryAbi, savingsPoolAbi } from "../abis.js";
+import { erc20Abi, factoryAbi, savingsPoolAbi } from "../abis.js";
+import { normalizeTokenSymbol, type TokenMetadata } from "../tokenFormatting.js";
 
 interface PoolInfo {
   balance: string;
@@ -28,7 +29,7 @@ interface CreatePoolResult {
 
 interface WdkAccount {
   getAddress(): Promise<string>;
-  sendTransaction: (tx: { to: string; value: number | bigint; data?: string }) => Promise<{ hash: string }>;
+  sendTransaction: (tx: { to: string; value: number | bigint; data?: string; gasLimit?: number | bigint }) => Promise<{ hash: string }>;
 }
 
 export class AdminAgent {
@@ -60,6 +61,24 @@ export class AdminAgent {
     const address = (await this.account.getAddress()) as Address;
     const balance = await this.publicClient.getBalance({ address });
     return formatEther(balance);
+  }
+
+  async getTokenMetadata(tokenAddress: Address): Promise<TokenMetadata> {
+    const [decimals, symbol, name] = await Promise.all([
+      this.publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: "decimals",
+      }),
+      this.readOptionalTokenString(tokenAddress, "symbol"),
+      this.readOptionalTokenString(tokenAddress, "name"),
+    ]);
+
+    return {
+      decimals: Number(decimals),
+      symbol: normalizeTokenSymbol(symbol),
+      name,
+    };
   }
 
   async createSavingsPool(
@@ -135,7 +154,7 @@ export class AdminAgent {
       to: poolAddress,
       value: 0n,
       data,
-      gas: 200000n,
+      gasLimit: 200000n,
     });
 
     console.log(`[AdminAgent] payout tx: ${txHash}`);
@@ -252,5 +271,21 @@ export class AdminAgent {
       nextIntervalEndTimestamp,
       canPayoutNow,
     };
+  }
+
+  private async readOptionalTokenString(
+    tokenAddress: Address,
+    functionName: "symbol" | "name"
+  ): Promise<string | null> {
+    try {
+      const value = await this.publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName,
+      });
+      return typeof value === "string" && value.trim() ? value : null;
+    } catch {
+      return null;
+    }
   }
 }

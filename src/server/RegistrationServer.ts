@@ -7,6 +7,12 @@ import { mainnet } from "viem/chains";
 import { REGISTRATION_PORT, ETH_RPC_URL } from "../config.js";
 import { erc20Abi, savingsPoolAbi } from "../abis.js";
 import type { Orchestrator } from "../orchestrator.js";
+import {
+  formatTokenAmount,
+  formatTokenAmountWithSymbol,
+  normalizeTokenDecimals,
+  normalizeTokenSymbol,
+} from "../tokenFormatting.js";
 
 const DB_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../data/store.json");
 
@@ -19,6 +25,9 @@ export interface PoolRecord {
   contribution: string;
   interval: string;
   requiredCount: number;
+  tokenDecimals?: number;
+  tokenSymbol?: string;
+  tokenName?: string;
   status: PoolStatus;
   createdAt: string;
 }
@@ -122,6 +131,10 @@ export class RegistrationServer {
     if (!poolAddress) return all;
     const key = poolAddress.toLowerCase();
     return all.filter((m) => m.poolAddress === key);
+  }
+
+  getPool(poolAddress: string): PoolRecord | undefined {
+    return this.pools.get(poolAddress.toLowerCase());
   }
 
   recordPayout(poolAddress: string, payout: Omit<PayoutRecord, "paidAt">) {
@@ -290,7 +303,7 @@ export class RegistrationServer {
         data,
         value: "0x0",
         chainId: 1,
-        description: `Approve ${Number(amountBig) / 1e6} token spend for pool ${poolAddr}`,
+        description: `Approve ${formatTokenAmountWithSymbol(amountBig, pool.tokenDecimals, pool.tokenSymbol)} spend for pool ${poolAddr}`,
       });
     });
 
@@ -309,7 +322,7 @@ export class RegistrationServer {
 
       if (amountBig < BigInt(pool.contribution)) {
         return res.status(400).json({
-          error: `Amount too low. Pool requires at least ${pool.contribution} raw units (${Number(pool.contribution) / 1e6} tokens)`,
+          error: `Amount too low. Pool requires at least ${pool.contribution} raw units (${formatTokenAmountWithSymbol(pool.contribution, pool.tokenDecimals, pool.tokenSymbol)})`,
         });
       }
 
@@ -324,7 +337,7 @@ export class RegistrationServer {
         data,
         value: "0x0",
         chainId: 1,
-        description: `Contribute ${Number(amountBig) / 1e6} tokens to pool ${poolAddr}`,
+        description: `Contribute ${formatTokenAmountWithSymbol(amountBig, pool.tokenDecimals, pool.tokenSymbol)} to pool ${poolAddr}`,
       });
     });
 
@@ -537,6 +550,18 @@ export class RegistrationServer {
     const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)'];
     const POOL_ABI = ['function contribute(uint256 amount)'];
 
+    function trimTrailingZeros(value) {
+      return value.includes('.') ? value.replace(/(?:\\.0+|(\\.\\d*?[1-9])0+)$/, '$1') : value;
+    }
+
+    function formatTokenAmount(rawAmount, decimals) {
+      return trimTrailingZeros(ethers.utils.formatUnits(rawAmount, Number(decimals)));
+    }
+
+    function formatTokenAmountWithSymbol(rawAmount, decimals, symbol) {
+      return formatTokenAmount(rawAmount, decimals) + ' ' + (symbol || 'token');
+    }
+
     // ── Wallet state ─────────────────────────────────────────────────────────
     let connectedAddress = null;
     let activeProvider = null;
@@ -660,9 +685,8 @@ export class RegistrationServer {
     })();
 
     // ── Approve token ─────────────────────────────────────────────────────────
-    async function approveToken(poolAddress, tokenAddress, amountStr, statusEl, btnEl) {
-      const amount = parseFloat(amountStr);
-      if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
+    async function approveToken(poolAddress, tokenAddress, amountStr, tokenDecimals, tokenSymbol, statusEl, btnEl) {
+      if (!amountStr.trim()) { alert('Enter a valid amount.'); return; }
       statusEl.className = 'action-status pending';
       statusEl.textContent = 'Waiting for signature…';
       btnEl.disabled = true;
@@ -670,7 +694,7 @@ export class RegistrationServer {
         const provider = new ethers.providers.Web3Provider(activeProvider);
         const signer = provider.getSigner();
         const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-        const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
+        const amountRaw = ethers.utils.parseUnits(amountStr.trim(), Number(tokenDecimals));
         const tx = await token.approve(poolAddress, amountRaw);
         statusEl.textContent = 'Approving…';
         await tx.wait();
@@ -688,21 +712,23 @@ export class RegistrationServer {
     }
 
     // ── Contribute to pool ────────────────────────────────────────────────────
-    async function contributeToPool(poolAddress, amountStr, contributionRaw, statusEl, btnEl) {
-      const amount = parseFloat(amountStr);
-      const minAmount = Number(contributionRaw) / 1e6;
-      if (!amount || amount < minAmount) {
-        alert('Amount must be at least ' + minAmount.toFixed(2) + ' tokens.');
-        return;
-      }
+    async function contributeToPool(poolAddress, amountStr, contributionRaw, tokenDecimals, tokenSymbol, statusEl, btnEl) {
+      if (!amountStr.trim()) { alert('Enter a valid amount.'); return; }
       statusEl.className = 'action-status pending';
       statusEl.textContent = 'Waiting for signature…';
       btnEl.disabled = true;
       try {
+        const amountRaw = ethers.utils.parseUnits(amountStr.trim(), Number(tokenDecimals));
+        const minAmountRaw = ethers.BigNumber.from(contributionRaw);
+        if (amountRaw.lt(minAmountRaw)) {
+          alert('Amount must be at least ' + formatTokenAmountWithSymbol(contributionRaw, tokenDecimals, tokenSymbol) + '.');
+          btnEl.disabled = false;
+          return;
+        }
+
         const provider = new ethers.providers.Web3Provider(activeProvider);
         const signer = provider.getSigner();
         const pool = new ethers.Contract(poolAddress, POOL_ABI, signer);
-        const amountRaw = ethers.utils.parseUnits(amount.toFixed(6), 6);
         const tx = await pool.contribute(amountRaw);
         statusEl.textContent = 'Contributing…';
         await tx.wait();
@@ -739,6 +765,8 @@ export class RegistrationServer {
       const poolAddress = card.dataset.poolAddress;
       const tokenAddress = card.dataset.tokenAddress;
       const contributionRaw = card.dataset.contributionRaw;
+      const tokenDecimals = card.dataset.tokenDecimals;
+      const tokenSymbol = card.dataset.tokenSymbol;
 
       const approveBtn = card.querySelector('.action-btn.approve');
       const approveInput = card.querySelector('.approve-input');
@@ -746,7 +774,7 @@ export class RegistrationServer {
       if (approveBtn && approveInput && approveStatus) {
         approveBtn.addEventListener('click', () => {
           if (!connectedAddress) { openWalletPicker(); return; }
-          approveToken(poolAddress, tokenAddress, approveInput.value, approveStatus, approveBtn);
+          approveToken(poolAddress, tokenAddress, approveInput.value, tokenDecimals, tokenSymbol, approveStatus, approveBtn);
         });
       }
 
@@ -756,7 +784,7 @@ export class RegistrationServer {
       if (contributeBtn && contributeInput && contributeStatus) {
         contributeBtn.addEventListener('click', () => {
           if (!connectedAddress) { openWalletPicker(); return; }
-          contributeToPool(poolAddress, contributeInput.value, contributionRaw, contributeStatus, contributeBtn);
+          contributeToPool(poolAddress, contributeInput.value, contributionRaw, tokenDecimals, tokenSymbol, contributeStatus, contributeBtn);
         });
       }
 
@@ -849,14 +877,14 @@ export class RegistrationServer {
       setupAllPoolActions();
     }, 60000);
 
-    function renderPoolActions(contributionUsdt) {
+    function renderPoolActions(contributionDisplay, tokenSymbol) {
       // Visibility is controlled by JS updateCardActions — always render HTML, hide by default
       return \`
         <div class="pool-actions" style="display:none;flex-direction:column;gap:.75rem;">
           <div class="approve-section" style="display:none;">
             <div class="action-group-title">Approve Token</div>
             <div class="action-row">
-              <input type="number" class="approve-input" placeholder="Amount in tokens" min="\${contributionUsdt}" step="any" value="\${contributionUsdt}" />
+              <input type="number" class="approve-input" placeholder="Amount in \${tokenSymbol}" min="\${contributionDisplay}" step="any" value="\${contributionDisplay}" />
               <button class="action-btn approve">Approve</button>
             </div>
             <div class="approve-status action-status"></div>
@@ -864,7 +892,7 @@ export class RegistrationServer {
           <div>
             <div class="action-group-title">Contribute</div>
             <div class="action-row">
-              <input type="number" class="contribute-input" placeholder="\${contributionUsdt} tokens" min="\${contributionUsdt}" step="any" value="\${contributionUsdt}" />
+              <input type="number" class="contribute-input" placeholder="\${contributionDisplay} \${tokenSymbol}" min="\${contributionDisplay}" step="any" value="\${contributionDisplay}" />
               <button class="action-btn contribute">Contribute</button>
             </div>
             <div class="contribute-status action-status"></div>
@@ -876,7 +904,9 @@ export class RegistrationServer {
 
     function renderPool(pool) {
       const pct = Math.min(100, Math.round((pool.memberCount / pool.requiredCount) * 100));
-      const contributionUsdt = (pool.contribution / 1_000_000).toFixed(2);
+      const tokenDecimals = Number.isInteger(pool.tokenDecimals) ? pool.tokenDecimals : 6;
+      const tokenSymbol = (pool.tokenSymbol || 'token').trim() || 'token';
+      const contributionDisplay = formatTokenAmount(pool.contribution, tokenDecimals);
       const intervalSecs = pool.interval;
       const intervalLabel = intervalSecs < 86400
         ? Math.round(intervalSecs / 60) + ' min'
@@ -885,7 +915,7 @@ export class RegistrationServer {
       const members = pool.members ?? [];
       const memberAddrs = members.map(m => m.address.toLowerCase()).join(',');
 
-      return \`<div class="pool-card" data-pool-address="\${pool.poolAddress.toLowerCase()}" data-token-address="\${pool.tokenAddress}" data-contribution-raw="\${pool.contribution}" data-members="\${memberAddrs}">
+      return \`<div class="pool-card" data-pool-address="\${pool.poolAddress.toLowerCase()}" data-token-address="\${pool.tokenAddress}" data-token-decimals="\${tokenDecimals}" data-token-symbol="\${tokenSymbol}" data-contribution-raw="\${pool.contribution}" data-members="\${memberAddrs}">
         <div class="pool-header">
           <div>
             <div class="pool-title">Savings Pool</div>
@@ -894,7 +924,7 @@ export class RegistrationServer {
           <span class="badge \${pool.status}">\${isClosed ? 'Membership Closed' : 'Open'}</span>
         </div>
         <div class="pool-meta">
-          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionUsdt} tokens</div></div>
+          <div class="meta-item"><div class="label">Contribution</div><div class="value">\${contributionDisplay} \${tokenSymbol}</div></div>
           <div class="meta-item"><div class="label">Interval</div><div class="value">\${intervalLabel}</div></div>
         </div>
         <div class="progress-wrap">
@@ -918,7 +948,7 @@ export class RegistrationServer {
               <input type="text" name="address" placeholder="0x… your address" required />
               <button type="submit">Join</button>
             </form>\`}
-        \${renderPoolActions(contributionUsdt)}
+        \${renderPoolActions(contributionDisplay, tokenSymbol)}
       </div>\`;
     }
 
@@ -1044,7 +1074,9 @@ export class RegistrationServer {
     const payoutWarning = this.payoutWarnings.get(poolKey) ?? null;
     const count = members.length;
     const pct = Math.min(100, Math.round((count / pool.requiredCount) * 100));
-    const contributionUsdt = (Number(pool.contribution) / 1_000_000).toFixed(2);
+    const tokenDecimals = normalizeTokenDecimals(pool.tokenDecimals);
+    const tokenSymbol = normalizeTokenSymbol(pool.tokenSymbol);
+    const contributionDisplay = formatTokenAmount(pool.contribution, tokenDecimals);
     const intervalSecs = Number(pool.interval);
     const intervalLabel = intervalSecs < 86400
       ? Math.round(intervalSecs / 60) + " min"
@@ -1053,7 +1085,7 @@ export class RegistrationServer {
     const memberAddrs = members.map((m) => m.address.toLowerCase()).join(",");
 
     return `
-<div class="pool-card" data-pool-address="${poolKey}" data-token-address="${pool.tokenAddress}" data-contribution-raw="${pool.contribution}" data-members="${memberAddrs}">
+<div class="pool-card" data-pool-address="${poolKey}" data-token-address="${pool.tokenAddress}" data-token-decimals="${tokenDecimals}" data-token-symbol="${tokenSymbol}" data-contribution-raw="${pool.contribution}" data-members="${memberAddrs}">
   <div class="pool-header">
     <div>
       <div class="pool-title">Savings Pool</div>
@@ -1062,7 +1094,7 @@ export class RegistrationServer {
     <span class="badge ${pool.status}">${isClosed ? "Membership Closed" : "Open"}</span>
   </div>
   <div class="pool-meta">
-    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionUsdt} tokens</div></div>
+    <div class="meta-item"><div class="label">Contribution</div><div class="value">${contributionDisplay} ${tokenSymbol}</div></div>
     <div class="meta-item"><div class="label">Interval</div><div class="value">${intervalLabel}</div></div>
   </div>
   <div class="progress-wrap">
@@ -1091,7 +1123,7 @@ export class RegistrationServer {
     <div class="approve-section" style="display:none;">
       <div class="action-group-title">Approve Token</div>
       <div class="action-row">
-        <input type="number" class="approve-input" placeholder="Amount in tokens" min="${contributionUsdt}" step="any" value="${contributionUsdt}" />
+        <input type="number" class="approve-input" placeholder="Amount in ${tokenSymbol}" min="${contributionDisplay}" step="any" value="${contributionDisplay}" />
         <button class="action-btn approve">Approve</button>
       </div>
       <div class="approve-status action-status"></div>
@@ -1099,7 +1131,7 @@ export class RegistrationServer {
     <div>
       <div class="action-group-title">Contribute</div>
       <div class="action-row">
-        <input type="number" class="contribute-input" placeholder="${contributionUsdt} tokens" min="${contributionUsdt}" step="any" value="${contributionUsdt}" />
+        <input type="number" class="contribute-input" placeholder="${contributionDisplay} ${tokenSymbol}" min="${contributionDisplay}" step="any" value="${contributionDisplay}" />
         <button class="action-btn contribute">Contribute</button>
       </div>
       <div class="contribute-status action-status"></div>
