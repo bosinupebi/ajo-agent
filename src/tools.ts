@@ -1,9 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { Address } from "viem";
+import { parseUnits, type Address } from "viem";
 import type { AdminAgent } from "./agents/AdminAgent.js";
 import type { RegistrationServer } from "./server/RegistrationServer.js";
 import type { PoolManager } from "./PoolManager.js";
 import { FACTORY_ADDRESS, REGISTRATION_PORT, TOKEN_ADDRESS } from "./config.js";
+import {
+  formatTokenAmountWithSymbol,
+  normalizeTokenDecimals,
+  normalizeTokenSymbol,
+} from "./tokenFormatting.js";
 
 export interface ToolContext {
   admin: AdminAgent;
@@ -27,11 +32,32 @@ export async function handleTool(
       return `ETH balance: ${balance} ETH`;
     }
 
+    case "get_token_metadata": {
+      const tokenAddress = input.token_address as Address;
+      const metadata = await ctx.admin.getTokenMetadata(tokenAddress);
+      return (
+        `Token verified:\n` +
+        `  address:  ${tokenAddress}\n` +
+        `  symbol:   ${normalizeTokenSymbol(metadata.symbol)}\n` +
+        `  name:     ${metadata.name ?? "N/A"}\n` +
+        `  decimals: ${normalizeTokenDecimals(metadata.decimals)}`
+      );
+    }
+
     case "create_savings_pool": {
       const intervalSeconds = input.interval_seconds as number;
-      const contributionRaw = input.contribution_raw as number;
       const requiredCount = input.required_count as number;
+      const contributionAmount = typeof input.contribution_amount === "string"
+        ? input.contribution_amount.trim()
+        : "";
+      const contributionRawInput = input.contribution_raw as number | string | undefined;
       const tokenAddress = (input.token_address as Address | undefined) ?? TOKEN_ADDRESS;
+      const tokenMetadata = await ctx.admin.getTokenMetadata(tokenAddress);
+      const contributionRaw = contributionAmount
+        ? parseUnits(contributionAmount, tokenMetadata.decimals)
+        : contributionRawInput !== undefined
+          ? BigInt(contributionRawInput)
+          : (() => { throw new Error("create_savings_pool requires contribution_amount"); })();
       const result = await ctx.admin.createSavingsPool(
         FACTORY_ADDRESS as Address,
         intervalSeconds,
@@ -44,9 +70,12 @@ export async function handleTool(
         contribution: contributionRaw.toString(),
         interval: intervalSeconds.toString(),
         requiredCount,
+        tokenDecimals: tokenMetadata.decimals,
+        tokenSymbol: tokenMetadata.symbol,
+        tokenName: tokenMetadata.name ?? undefined,
       });
       ctx.poolManager.watch(result.poolAddress, requiredCount);
-      return `Pool deployed at ${result.poolAddress}. Tx: ${result.txHash}. Now visible on the registration site at http://localhost:${REGISTRATION_PORT}`;
+      return `Pool deployed at ${result.poolAddress}. Contribution: ${formatTokenAmountWithSymbol(contributionRaw, tokenMetadata.decimals, tokenMetadata.symbol)}. Tx: ${result.txHash}. Now visible on the registration site at http://localhost:${REGISTRATION_PORT}`;
     }
 
     case "get_registered_members": {
@@ -78,15 +107,18 @@ export async function handleTool(
     case "get_pool_info": {
       const poolAddress = input.pool_address as Address;
       const info = await ctx.admin.getPoolInfo(poolAddress);
+      const pool = ctx.server.getPool(poolAddress);
+      const tokenDecimals = normalizeTokenDecimals(pool?.tokenDecimals);
+      const tokenSymbol = normalizeTokenSymbol(pool?.tokenSymbol);
       const intervalSecs = Number(info.interval);
       const intervalLabel = intervalSecs < 86400
         ? `${Math.round(intervalSecs / 60)} min`
         : `${(intervalSecs / 86400).toFixed(1)} days`;
       return (
         `Pool ${poolAddress}:\n` +
-        `  balance:               ${info.balance} raw units (${Number(info.balance) / 1e6})\n` +
+        `  balance:               ${info.balance} raw units (${formatTokenAmountWithSymbol(info.balance, tokenDecimals, tokenSymbol)})\n` +
         `  interval:              ${info.interval}s (${intervalLabel})\n` +
-        `  contribution:          ${info.contribution} raw units (${Number(info.contribution) / 1e6})\n` +
+        `  contribution:          ${info.contribution} raw units (${formatTokenAmountWithSymbol(info.contribution, tokenDecimals, tokenSymbol)})\n` +
         `  lastProcessedInterval: ${info.lastProcessedInterval}\n` +
         `  lastPayoutTimestamp:   ${info.lastPayoutTimestamp}\n` +
         `  nextIntervalEnd:       ${info.nextIntervalEndTimestamp}\n` +
@@ -133,6 +165,20 @@ export const tools: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "get_token_metadata",
+    description: "Verify an ERC-20 token contract address and return its symbol, name, and decimals. Use this before creating a pool with any user-provided token address.",
+    input_schema: {
+      type: "object",
+      properties: {
+        token_address: {
+          type: "string",
+          description: "ERC-20 token contract address on Ethereum Mainnet",
+        },
+      },
+      required: ["token_address"],
+    },
+  },
+  {
     name: "create_savings_pool",
     description: "Deploy a new AjoV1 savings pool and register it on the website. The contribution token is an ERC-20 configured via TOKEN_ADDRESS.",
     input_schema: {
@@ -142,9 +188,13 @@ export const tools: Anthropic.Tool[] = [
           type: "number",
           description: "Interval duration in seconds (e.g. 604800 = 7 days)",
         },
+        contribution_amount: {
+          type: "string",
+          description: "Human-readable token amount such as '1', '1.5', or '2500.25'. The backend will convert this using the verified token decimals.",
+        },
         contribution_raw: {
-          type: "number",
-          description: "Contribution amount in raw token units (e.g. 1000000 = 1 token for a 6-decimal ERC-20)",
+          type: "string",
+          description: "Legacy fallback: raw token units. Prefer contribution_amount instead.",
         },
         token_address: {
           type: "string",
@@ -155,7 +205,7 @@ export const tools: Anthropic.Tool[] = [
           description: "Number of members required to fill this pool. When reached the site shows 'Membership Closed'.",
         },
       },
-      required: ["interval_seconds", "contribution_raw", "required_count"],
+      required: ["interval_seconds", "contribution_amount", "required_count"],
     },
   },
   {

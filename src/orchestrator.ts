@@ -9,8 +9,9 @@ A registration website is already running where members can sign up by submittin
 
 Key facts:
 - The contribution token is an ERC-20. If the user does not specify a token address when creating a pool, use USDT on Ethereum Mainnet by default (omit token_address and the tool will use the default)
-- The default token (USDT) has 6 decimals: 1 USDT = 1,000,000 raw units. Confirm decimals with the user if a non-standard token is specified
-- When the user says "create a pool with X token contribution", convert X to raw units based on the token's decimals
+- NEVER guess or infer an ERC-20 contract address from a ticker or token name alone. If the user names a token but does not provide an address, ask them for the exact token contract address
+- Once the user provides a token address, call get_token_metadata to verify the token before creating the pool
+- When creating a pool, pass a human-readable contribution_amount string such as "1" or "1.5". The backend will convert it to raw units using the verified token decimals
 - When the user specifies a member count, pass it as required_count to create_savings_pool
 - The trigger_payout tool automatically reads nextIntervalEndTimestamp from the contract and uses it as the payout timestamp — never pass a timestamp yourself
 - Always check ETH balance before sending transactions

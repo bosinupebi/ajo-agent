@@ -9,7 +9,8 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 import { ETH_RPC_URL } from "../config.js";
-import { factoryAbi, savingsPoolAbi } from "../abis.js";
+import { erc20Abi, factoryAbi, savingsPoolAbi } from "../abis.js";
+import { normalizeTokenSymbol, type TokenMetadata } from "../tokenFormatting.js";
 
 interface PoolInfo {
   balance: string;
@@ -60,6 +61,24 @@ export class AdminAgent {
     const address = (await this.account.getAddress()) as Address;
     const balance = await this.publicClient.getBalance({ address });
     return formatEther(balance);
+  }
+
+  async getTokenMetadata(tokenAddress: Address): Promise<TokenMetadata> {
+    const [decimals, symbol, name] = await Promise.all([
+      this.publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: "decimals",
+      }),
+      this.readOptionalTokenString(tokenAddress, "symbol"),
+      this.readOptionalTokenString(tokenAddress, "name"),
+    ]);
+
+    return {
+      decimals: Number(decimals),
+      symbol: normalizeTokenSymbol(symbol),
+      name,
+    };
   }
 
   async createSavingsPool(
@@ -252,5 +271,21 @@ export class AdminAgent {
       nextIntervalEndTimestamp,
       canPayoutNow,
     };
+  }
+
+  private async readOptionalTokenString(
+    tokenAddress: Address,
+    functionName: "symbol" | "name"
+  ): Promise<string | null> {
+    try {
+      const value = await this.publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName,
+      });
+      return typeof value === "string" && value.trim() ? value : null;
+    } catch {
+      return null;
+    }
   }
 }
